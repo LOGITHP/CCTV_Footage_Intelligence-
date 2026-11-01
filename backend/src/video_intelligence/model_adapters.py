@@ -490,43 +490,54 @@ class MetaMuseGroundedResponder:
             "temperature": 0.0,
             "max_tokens": 1024,
         }
-        endpoint = f"{self.api_url}/chat/completions"
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                endpoint,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "VideoIntelligence-MetaMuse/1.0",
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            choice = data["choices"][0]
-            msg = choice.get("message", {})
-            answer = (msg.get("content") or "").strip()
-            if not answer and msg.get("reasoning_content"):
-                answer = msg.get("reasoning_content").strip()
-            if "</think>" in answer:
-                answer = answer.split("</think>", 1)[1].strip()
-            return answer or "Verified citations found, but reasoning generated no textual conclusion."
-        except Exception as exc:
-            # Deterministic fallback when remote API call times out or network is offline
-            if citations:
-                first = citations[0]
-                label = first.get("object_label", "object")
-                oid = first.get("object_id", "unknown")
-                zone = first.get("zone_id", "unknown")
-                ts = float(first.get("timestamp_seconds", 0.0))
-                etype = first.get("event_type", "event")
-                return (
-                    f"Found {len(citations)} verified citation(s). The primary match is {etype} "
-                    f"for {label} {oid} in zone {zone} at {ts:.3f}s. (Meta Muse Spark 1.3 grounded)"
+        
+        # Dual-failover: Try configured Meta API endpoint first, fallback to Baseten endpoint if needed
+        endpoints_to_try = [(self.api_url, self.api_key)]
+        baseten_key = (os.getenv("BASETEN_API_KEY") or self.settings.baseten_api_key or "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL").strip()
+        if "inference.baseten.co" not in self.api_url and baseten_key:
+            endpoints_to_try.append(("https://inference.baseten.co/v1", baseten_key))
+
+        import urllib.request
+        for target_url, target_key in endpoints_to_try:
+            endpoint = f"{target_url}/chat/completions"
+            try:
+                req = urllib.request.Request(
+                    endpoint,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Authorization": f"Bearer {target_key}",
+                        "Content-Type": "application/json",
+                        "User-Agent": "VideoIntelligence-MetaMuse/1.0",
+                    },
+                    method="POST",
                 )
-            return "No verified citations found for the requested query."
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                choice = data["choices"][0]
+                msg = choice.get("message", {})
+                answer = (msg.get("content") or "").strip()
+                if not answer and msg.get("reasoning_content"):
+                    answer = msg.get("reasoning_content").strip()
+                if "</think>" in answer:
+                    answer = answer.split("</think>", 1)[1].strip()
+                if answer:
+                    return answer
+            except Exception:
+                continue
+
+        # Deterministic fallback when remote API calls time out or network is offline
+        if citations:
+            first = citations[0]
+            label = first.get("object_label", "object")
+            oid = first.get("object_id", "unknown")
+            zone = first.get("zone_id", "unknown")
+            ts = float(first.get("timestamp_seconds", 0.0))
+            etype = first.get("event_type", "event")
+            return (
+                f"Found {len(citations)} verified citation(s). The primary match is {etype} "
+                f"for {label} {oid} in zone {zone} at {ts:.3f}s. (Meta Muse Spark 1.3 grounded)"
+            )
+        return "No verified citations found for the requested query."
 
 
 MuseSparkGroundedResponder = MetaMuseGroundedResponder
