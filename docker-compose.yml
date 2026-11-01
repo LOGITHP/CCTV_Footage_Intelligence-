@@ -20,6 +20,7 @@ services:
       - APP_ENV=production
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=adminpassword123
+      - ALLOW_PUBLIC_SIGNUP=true
 
       # --- Supabase PostgreSQL Database (IPv4 Pooler Compatible with Docker Bridge) ---
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://postgres.iprbivrwcicogcjxzylr:Plogithh%40200855@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require}

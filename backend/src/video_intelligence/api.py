@@ -220,6 +220,15 @@ def request_principal(credentials: HTTPAuthorizationCredentials | None = Depends
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid or expired bearer token", headers={"WWW-Authenticate": "Bearer"}) from error
 
 
+def optional_principal(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> UserPrincipal | None:
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        return request_principal(credentials=credentials)
+    except HTTPException:
+        return None
+
+
 def bootstrap_or_principal(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> UserPrincipal:
     if not security_settings.policy.require_authentication or not user_repository.has_users():
         return _development_principal()
@@ -713,9 +722,11 @@ def monitoring_anomalies(camera_id: str | None = None, session_id: str | None = 
 
 
 @app.post("/api/v1/auth/register", status_code=201)
-def register(request: RegisterRequest, principal: UserPrincipal = Depends(bootstrap_or_principal)) -> dict:
-    if user_repository.has_users() and not has_permission(principal, Permission.USER_MANAGE):
-        raise HTTPException(status_code=403, detail="admin permission required to register users")
+def register(request: RegisterRequest, principal: UserPrincipal | None = Depends(optional_principal)) -> dict:
+    allow_public_signup = os.getenv("ALLOW_PUBLIC_SIGNUP", "true").lower() in {"1", "true", "yes"}
+    if user_repository.has_users() and not allow_public_signup:
+        if principal is None or not has_permission(principal, Permission.USER_MANAGE):
+            raise HTTPException(status_code=403, detail="admin permission required to register users")
     try:
         user = authentication_service.register_user(request.username, request.password, request.role)
     except ValueError as error:
