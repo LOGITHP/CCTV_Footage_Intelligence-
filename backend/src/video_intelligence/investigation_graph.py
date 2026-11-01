@@ -14,7 +14,13 @@ from pathlib import Path
 from typing import Any, TypedDict
 from uuid import uuid4
 
-from langgraph.graph import END, StateGraph
+try:
+    from langgraph.graph import END, StateGraph
+    HAS_LANGGRAPH = True
+except ImportError:
+    HAS_LANGGRAPH = False
+    END = None
+    StateGraph = None
 
 from .chat import QueryPlan, grounded_answer, parse_query, _scoped_video_ids, _search_scoped_events
 from .evidence import create_clip
@@ -269,8 +275,8 @@ def build_investigation_graph():
     return builder.compile()
 
 
-# Global compiled investigation graph instance
-investigation_graph = build_investigation_graph()
+# Global compiled investigation graph instance (if langgraph is available)
+investigation_graph = build_investigation_graph() if HAS_LANGGRAPH else None
 
 
 def run_investigation_graph(
@@ -283,7 +289,18 @@ def run_investigation_graph(
     event_id: str | None = None,
     media_root: Any = None,
 ) -> dict[str, Any]:
-    """Execute the compiled LangGraph workflow."""
+    """Execute the compiled LangGraph workflow or fallback to grounded answer."""
+    if not HAS_LANGGRAPH or investigation_graph is None:
+        from .chat import answer_query
+        return answer_query(
+            store,
+            query,
+            video_id=video_id,
+            camera_id=camera_id,
+            session_id=session_id,
+            event_id=event_id,
+        )
+
     initial_state: InvestigationGraphState = {
         "query": query,
         "video_id": video_id,

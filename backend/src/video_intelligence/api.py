@@ -113,7 +113,16 @@ def build_authoritative_store():
     if settings.database.url:
         from .infrastructure.postgres import PostgresStore
 
-        return PostgresStore(settings.database.url)
+        try:
+            return PostgresStore(settings.database.url)
+        except Exception as error:
+            import logging
+            logging.getLogger("video_intelligence").warning(
+                "PostgreSQL connection failed (%s); falling back to SQLite store at %s",
+                error,
+                settings.database.sqlite_path,
+            )
+            return Store(settings.database.sqlite_path)
     return Store(settings.database.sqlite_path)
 
 

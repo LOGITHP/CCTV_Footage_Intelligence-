@@ -14,3 +14,9 @@ ruff==0.9.10
 SQLAlchemy==2.0.36
 setuptools==75.8.0
 uvicorn[standard]==0.34.0
+langgraph==1.2.12
+langchain-core==1.6.5
+langgraph-checkpoint==4.2.0
+langgraph-prebuilt==1.1.0
+langgraph-sdk==0.4.5
+xxhash==4.0.1

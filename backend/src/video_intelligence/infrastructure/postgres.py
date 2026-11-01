@@ -55,6 +55,8 @@ class PostgresStore:
             engine_options: dict[str, Any] = {"future": True, "pool_pre_ping": True}
             if database_url.startswith("sqlite") and ":memory:" in database_url:
                 engine_options.update({"connect_args": {"check_same_thread": False}, "poolclass": StaticPool})
+            elif database_url.startswith("postgresql"):
+                engine_options.update({"connect_args": {"connect_timeout": 10}})
             engine = create_engine(database_url, **engine_options)
         self.engine = engine
         self._sessions = sessionmaker(bind=engine, expire_on_commit=False, future=True)

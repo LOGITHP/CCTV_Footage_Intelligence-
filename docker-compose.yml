@@ -18,8 +18,8 @@ services:
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=adminpassword123
 
-      # --- Supabase PostgreSQL Database ---
-      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://postgres:Plogithh%40200855@db.iprbivrwcicogcjxzylr.supabase.co:5432/postgres?sslmode=require}
+      # --- Supabase PostgreSQL Database (IPv4 Pooler Compatible with Docker Bridge) ---
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://postgres.iprbivrwcicogcjxzylr:Plogithh%40200855@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require}
 
       # --- Object Storage (Default local; switch to minio when running minio profile) ---
       - OBJECT_STORAGE_BACKEND=${OBJECT_STORAGE_BACKEND:-local}
