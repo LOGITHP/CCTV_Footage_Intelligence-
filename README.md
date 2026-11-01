@@ -5,33 +5,51 @@ An on-premises, evidence-oriented video processing platform.
 
 ## Meta AI Hackathon Architecture Stack
 
-| Layer | Model / Technology | Description |
-|---|---|---|
-| **Video decoding** | FFmpeg | Authoritative PTS preservation & evidence clip extraction |
-| **Frame preprocessing** | OpenCV | Source-frame decoding and color normalization |
-| **Object detection** | Meta SAM 3.1 | Segment Anything Model 3.1 object localization |
-| **Object segmentation** | Meta SAM 3.1 | Sub-pixel polygon boundary & mask contour generation |
-| **Object tracking** | Meta SAM 3.1 | Persistent video mask and trajectory tracking across frames |
-| **Visual embeddings** | SigLIP2 | Frame-level visual semantic feature representation |
-| **Text embeddings** | BGE-M3 | Query and event text multi-lingual embedding |
-| **Vector search** | Qdrant Cloud | Cloud-managed vector cluster (`sa-east-1-0.aws.cloud.qdrant.io`) |
-| **LLM reasoning** | Meta Muse Spark Open | Grounded multimodal reasoning via Baseten Inference API (`meta-models/muse-spark-open-1026`) |
+| Layer | Model / Technology | Deployment & Hosting | Functionality & Role |
+|---|---|---|---|
+| **LLM Reasoning & Forensic Q&A** | **Meta Muse Spark Open** (`meta-models/muse-spark-open-1026`) | **Baseten Inference API** (`https://inference.baseten.co/v1`) + Meta API fallback | Uses \$100 hackathon credit & 2M TPM quota for grounded chain-of-thought deductions with verified timestamps `[obj_id @ mm:ss]`. |
+| **Object Detection & Segmentation** | **Meta SAM 3.1** | **Meta Direct API** (`https://api.meta.ai/v1/responses`) | Sub-pixel polygon boundary & mask contour generation directly via Meta's API key, with Baseten and local contour fallbacks. |
+| **Visual Frame Embeddings** | **Google SigLIP 2** (`google/siglip2-base-patch16-224`) | **Local Docker Container** | Runs locally in the worker container via PyTorch & Transformers; eliminates network transfer overhead for high-frequency video frames. |
+| **Text Embeddings** | **BAAI BGE-M3** (`BAAI/bge-m3`) | **Local Docker Container** | Generates 1024-dim multilingual query vectors locally in < 10ms for instant search query responsiveness. |
+| **Object Storage (Original Media)** | **MinIO (S3-Compatible)** | **Local Docker Container** (`video-intelligence-minio`) | Stores original raw CCTV video files, trimmed MP4 evidence clips, and keyframe snapshots with S3 presigned URLs. Console at `http://localhost:9001`. |
+| **Relational Database** | **PostgreSQL 15** | **Supabase Cloud** (`db.iprbivrwcicogcjxzylr.supabase.co:5432`) | Authoritative transactional store with 13 tables across cameras, zones, tracks, alerts, and immutable audit logs. |
+| **Vector Search Engine** | **Qdrant Cloud** | **Qdrant AWS Cluster** (`sa-east-1-0.aws.cloud.qdrant.io`) | Sub-second visual & text similarity search with spatial/temporal payload filtering. |
+| **Video Decoding & Sampling** | **FFmpeg & OpenCV** | **Local Backend Container** | Authoritative PTS preservation, temporal subsampling, and frame-accurate evidence clipping. |
 
-### Meta AI, Baseten Hosting & Qdrant Cloud Integration
-- **LLM Reasoning**: Connected via `https://inference.baseten.co/v1/chat/completions` using Meta's official hackathon model `meta-models/muse-spark-open-1026` with Baseten bearer key `b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL` (allocated with $100 credits & 2M TPM).
-- **Model Hosting & Inference on Baseten**:
-  - **Meta SAM 3.1** (Detection & Segmentation): Packaged as Truss in `baseten_models/sam3_1` -> `BASETEN_SAM_ENDPOINT`.
-  - **SigLIP2** (Visual Frame Embeddings): Packaged as Truss in `baseten_models/siglip2` -> `BASETEN_SIGLIP_ENDPOINT`.
-  - **BGE-M3** (Text & Query Embeddings): Packaged as Truss in `baseten_models/bge_m3` -> `BASETEN_BGE_ENDPOINT`.
-  - **Baseten Authentication**: Securely authorized via `Api-Key b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL`.
-  - **Deployment Manager**: Run `python scripts/deploy_baseten.py` to validate packages and synchronize active predict endpoints.
-- **Vector DB Storage**: Connected to Qdrant Cloud cluster `https://6b0d33bb-ed40-4932-b576-d73fb0d8bce0.sa-east-1-0.aws.cloud.qdrant.io` for event and observation semantic indexing.
-- **Authoritative Database**: Connected to **Supabase PostgreSQL** (`db.iprbivrwcicogcjxzylr.supabase.co:5432`) housing 13 core relational tables across CCTV cameras, events, tracks, anomalies, outbox, and audit logs.
-- **Strict Evidence Grounding**: The LLM reasoning agent is strictly constrained to authoritative event citations—eliminating hallucination and preserving forensic timestamps.
+---
 
-### Multi-Tier Data Storage Architecture
+### Meta AI, Baseten Hosting, MinIO & Qdrant Cloud Integration
 
-To manage non-video derivatives, metadata, and high-frequency analytical output efficiently, the system implements a strict 4-tier storage topology:
+- **Meta Muse Spark Open LLM**:
+  - Connects to Baseten's managed inference gateway at `https://inference.baseten.co/v1/chat/completions`.
+  - Configured with official hackathon model `meta-models/muse-spark-open-1026` and API key `b10_nVtchD9y...` ($100 credit + 2M tokens/min).
+  - Configured with dual-failover to Meta Model API (`https://api.meta.ai/v1`, model `muse-spark-1.3`).
+- **Meta SAM 3.1 Segmentation & Detection**:
+  - Primary path: **Meta Direct API** (`POST https://api.meta.ai/v1/responses` with model `sam-3.1` and bearer key `LLM_...`).
+  - Secondary path: **Baseten Truss Service** via `BASETEN_SAM_ENDPOINT` (package ready in `baseten_models/sam3_1`).
+  - Fallback: Local edge and morphological contour segmentation.
+- **Local SigLIP 2 & BGE-M3 in Docker**:
+  - `SIGLIP_MODEL=google/siglip2-base-patch16-224` and `BGE_MODEL=BAAI/bge-m3` are embedded and loaded directly within the container using PyTorch and Hugging Face Transformers.
+  - Weights are cached in Docker volume `video_intelligence_model_cache` (`/root/.cache/huggingface`).
+- **MinIO Local S3 Object Storage**:
+  - Runs in `docker-compose.yml` alongside the backend on port `9000` (API) and `9001` (Web UI).
+  - All original raw video uploads and trimmed evidence cuts are safely stored in MinIO bucket `video-intelligence`.
+  - Credentials: User `minioadmin`, Password `minioadminpassword123`.
+- **Live Stack Verification Audit**:
+  - Run the full 5-point live stack connection audit:
+    ```bash
+    python scripts/test_live_stack_connections.py
+    ```
+    This automatically checks:
+    1. Meta API connection & SAM 3.1 endpoint readiness
+    2. Baseten Inference API connection for Muse Spark Open
+    3. Supabase Cloud PostgreSQL connectivity & table schemas
+    4. Qdrant Cloud Vector Database connectivity & collections
+    5. MinIO S3 object storage configuration
+
+---
+
+### Multi-Tier Data Storage Topology
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -39,15 +57,15 @@ To manage non-video derivatives, metadata, and high-frequency analytical output 
 ├───────────────────┬────────────────────────────┬───────────────────────┤
 │ Data Tier         │ Storage Medium             │ Contents Stored       │
 ├───────────────────┼────────────────────────────┼───────────────────────┤
-│ 1. Raw & Evidence │ Docker Volume / S3         │ Source videos (.mp4), │
-│    Media Clips    │ (/app/data/media)          │ trimmed evidence cuts │
+│ 1. Raw & Evidence │ MinIO / Local S3 Container │ Source videos (.mp4), │
+│    Media Clips    │ (http://minio:9000)        │ trimmed evidence cuts │
 ├───────────────────┼────────────────────────────┼───────────────────────┤
 │ 2. Relational &   │ Supabase PostgreSQL        │ Videos, Jobs, Events, │
 │    Forensic Store │ (db.*.supabase.co:5432)    │ Track Observations,   │
 │                   │                            │ Cameras, Alerts, Logs │
 ├───────────────────┼────────────────────────────┼───────────────────────┤
-│ 3. Multimodal     │ Qdrant Cloud               │ SigLIP2 & BGE-M3      │
-│    Vector Store   │ (sa-east-1-0.aws.cloud...) │ 384/768d embeddings   │
+│ 3. Multimodal     │ Qdrant Cloud               │ SigLIP 2 & BGE-M3     │
+│    Vector Store   │ (sa-east-1-0.aws.cloud...) │ 768d / 1024d vectors  │
 ├───────────────────┼────────────────────────────┼───────────────────────┤
 │ 4. Identity &     │ PBKDF2 + JWT               │ Bearer tokens, users, │
 │    Audit Trail    │ (Supabase + Append-Only)   │ immutable audit trail │
@@ -59,13 +77,9 @@ The PostgreSQL schema is structured under `backend/migrations/`:
 1. `001_initial.sql`: Core tables (`videos`, `jobs`, `events`, `track_observations`, `alert_rules`, `alerts`, `chat_messages`, `outbox_messages`, `security_users`, `audit_logs`).
 2. `002_camera_monitoring.sql`: Multi-camera topology, worker health metrics, scoped observations, and anomaly records.
 
-To apply all migrations directly to your Supabase PostgreSQL cluster:
+To apply migrations or run integration checks:
 ```bash
 python scripts/migrate_database.py
-```
-
-To run end-to-end integration tests verifying read/write/cascades on Supabase:
-```bash
 python scripts/test_supabase_integration.py
 ```
 

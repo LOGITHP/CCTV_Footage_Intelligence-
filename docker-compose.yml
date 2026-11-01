@@ -1,10 +1,30 @@
 services:
+  minio:
+    image: minio/minio:latest
+    container_name: video-intelligence-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   video-intelligence:
     build:
       context: .
       dockerfile: backend/Dockerfile
       args:
-        INSTALL_ML: 0
+        INSTALL_ML: 1
     image: multi-stream-video-intelligence:latest
     container_name: video-intelligence
     ports:
@@ -21,7 +41,15 @@ services:
       # --- Supabase PostgreSQL Database ---
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://postgres:Plogithh%40200855@db.iprbivrwcicogcjxzylr.supabase.co:5432/postgres?sslmode=require}
 
-      # --- Actual Video & Data Storage in Docker Volume ---
+      # --- Local MinIO Object Storage (Original Videos & Evidence Clips) ---
+      - OBJECT_STORAGE_BACKEND=minio
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_BUCKET=video-intelligence
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadminpassword123
+      - S3_REGION=us-east-1
+
+      # --- Local Fallback File Paths ---
       - MEDIA_ROOT=/app/data/media
       - DATABASE_PATH=/app/data/video_intelligence.sqlite3
       - AUTH_DATABASE_PATH=/app/data/auth.sqlite3
@@ -31,24 +59,35 @@ services:
       - MODEL_PROFILE=sam
       - TRACKER_PROFILE=sam
       - CHAT_MODEL_MODE=meta
+
+      # SAM 3.1: Uses Meta Direct API
       - META_API_KEY=LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg
       - META_API_URL=https://api.meta.ai/v1
+
+      # Muse Spark LLM: Uses Baseten Model API ($100 credit + 2M TPM)
+      - BASETEN_API_KEY=b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL
+      - BASETEN_INFERENCE_URL=https://inference.baseten.co/v1
       - META_MODEL=meta-models/muse-spark-open-1026
+
+      # SigLIP 2 & BGE-M3: Run locally inside Docker container
+      - SIGLIP_MODEL=google/siglip2-base-patch16-224
+      - BGE_MODEL=BAAI/bge-m3
+      - BASETEN_SIGLIP_ENDPOINT=
+      - BASETEN_BGE_ENDPOINT=
 
       # --- Qdrant Cloud Vector Storage ---
       - QDRANT_URL=https://6b0d33bb-ed40-4932-b576-d73fb0d8bce0.sa-east-1-0.aws.cloud.qdrant.io
       - QDRANT_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6NzgyNWY1ZTItZjRiNi00ZjEzLTk2YmQtYjA1MDIwOGYwMDZiIn0._Wq5qyrC0AeFJwAZieBzQsz_baWyA3vdNEX3hwTsiaA
       - QDRANT_COLLECTION=video-events
 
-      # --- Baseten Model Services (SAM 3.1, SigLIP2, BGE-M3) ---
-      - BASETEN_API_KEY=b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL
-      - BASETEN_SAM_ENDPOINT=${BASETEN_SAM_ENDPOINT:-https://model-sam-3-1.api.baseten.co/production/predict}
-      - BASETEN_SIGLIP_ENDPOINT=${BASETEN_SIGLIP_ENDPOINT:-https://model-siglip2.api.baseten.co/production/predict}
-      - BASETEN_BGE_ENDPOINT=${BASETEN_BGE_ENDPOINT:-https://model-bge-m3.api.baseten.co/production/predict}
+    depends_on:
+      minio:
+        condition: service_healthy
 
     volumes:
-      # Persistent Docker volume storing actual video recordings, evidence clips, and databases
+      # Persistent Docker volume storing local video recordings and caches
       - video_data:/app/data
+      - model_cache:/root/.cache/huggingface
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3)"]
@@ -62,4 +101,10 @@ services:
 volumes:
   video_data:
     name: video_intelligence_actual_media
+    driver: local
+  minio_data:
+    name: video_intelligence_minio_data
+    driver: local
+  model_cache:
+    name: video_intelligence_model_cache
     driver: local

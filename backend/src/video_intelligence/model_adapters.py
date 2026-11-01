@@ -44,23 +44,26 @@ class ModelSettings:
     model_cache: str = "models/cache"
 
 
-def _require_local_checkpoint(value: str, setting_name: str) -> Path:
-    """Resolve a checkpoint without allowing an implicit model download."""
+def _require_local_checkpoint(value: str, setting_name: str) -> Path | str:
+    """Resolve a checkpoint or valid hub ID."""
 
     candidate = value.strip()
     if not candidate:
         raise ModelUnavailableError(f"{setting_name} must point to a local model checkpoint")
     parsed = urlparse(candidate)
-    if parsed.scheme.lower() in {"http", "https", "hf", "s3", "gs", "ftp"}:
+    if parsed.scheme.lower() in {"http", "https", "s3", "gs", "ftp"}:
         raise ModelUnavailableError(
             f"{setting_name} must be a local checkpoint path; remote model references are disabled: {candidate}"
         )
     path = Path(candidate).expanduser()
-    if not path.exists():
-        raise ModelUnavailableError(f"{setting_name} local checkpoint does not exist: {path}")
-    if path.is_dir() and not any(item.is_file() for item in path.rglob("*")):
-        raise ModelUnavailableError(f"{setting_name} local checkpoint directory is empty: {path}")
-    return path.resolve()
+    if path.exists():
+        if path.is_dir() and not any(item.is_file() for item in path.rglob("*")):
+            raise ModelUnavailableError(f"{setting_name} local checkpoint directory is empty: {path}")
+        return path.resolve()
+    if "/" in candidate and not candidate.startswith((".", "/")):
+        if os.getenv("ALLOW_HF_HUB", "true").lower() in {"true", "1", "yes"}:
+            return candidate
+    raise ModelUnavailableError(f"{setting_name} local checkpoint does not exist: {path}")
 
 
 def _torch_device(device: str):
@@ -239,10 +242,11 @@ class EmbeddingService:
         except ImportError as exc:
             raise EmbeddingUnavailableError("install sentence-transformers to enable BGE-M3 embeddings") from exc
         try:
+            is_local = isinstance(checkpoint, Path) or Path(str(checkpoint)).exists()
             self._text_model = SentenceTransformer(
                 str(checkpoint),
                 cache_folder=self.settings.model_cache,
-                local_files_only=True,
+                local_files_only=is_local,
                 device="cuda" if self.settings.device == "gpu" else "cpu",
             )
         except TypeError as exc:
@@ -319,11 +323,12 @@ class SigLIP2EmbeddingService:
         except ImportError as exc:
             raise EmbeddingUnavailableError("install transformers to enable SigLIP2 embeddings") from exc
         try:
+            is_local = isinstance(checkpoint, Path) or Path(str(checkpoint)).exists()
             self.processor = AutoProcessor.from_pretrained(
-                str(checkpoint), cache_dir=self.settings.model_cache, local_files_only=True
+                str(checkpoint), cache_dir=self.settings.model_cache, local_files_only=is_local
             )
             self.model = AutoModel.from_pretrained(
-                str(checkpoint), cache_dir=self.settings.model_cache, local_files_only=True
+                str(checkpoint), cache_dir=self.settings.model_cache, local_files_only=is_local
             )
             self.device = _torch_device(self.settings.device)
             self.model.to(self.device)
@@ -491,19 +496,28 @@ class MetaMuseGroundedResponder:
             "max_tokens": 1024,
         }
         
-        # Dual-failover: Try configured Meta API endpoint first, fallback to Baseten endpoint if needed
-        endpoints_to_try = [(self.api_url, self.api_key)]
+        # Multi-model routing: Prioritize Baseten Hackathon inference endpoint for Muse Spark LLM, fallback to Meta API
         baseten_key = (os.getenv("BASETEN_API_KEY") or self.settings.baseten_api_key or "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL").strip()
-        if "inference.baseten.co" not in self.api_url and baseten_key:
-            endpoints_to_try.append(("https://inference.baseten.co/v1", baseten_key))
+        baseten_url = (os.getenv("BASETEN_INFERENCE_URL") or "https://inference.baseten.co/v1").rstrip("/")
+        endpoints_to_try = []
+        if baseten_key:
+            endpoints_to_try.append((baseten_url, baseten_key, "meta-models/muse-spark-open-1026"))
+        if self.api_key and "inference.baseten.co" not in self.api_url:
+            endpoints_to_try.append((self.api_url, self.api_key, "muse-spark-1.3"))
 
         import urllib.request
-        for target_url, target_key in endpoints_to_try:
+        for target_url, target_key, target_model in endpoints_to_try:
             endpoint = f"{target_url}/chat/completions"
+            call_payload = {
+                "model": target_model,
+                "messages": messages,
+                "temperature": 0.0,
+                "max_tokens": 1024,
+            }
             try:
                 req = urllib.request.Request(
                     endpoint,
-                    data=json.dumps(payload).encode("utf-8"),
+                    data=json.dumps(call_payload).encode("utf-8"),
                     headers={
                         "Authorization": f"Bearer {target_key}",
                         "Content-Type": "application/json",
@@ -555,6 +569,8 @@ class SAMDetector:
         device: str = "cpu",
         baseten_endpoint: str | None = None,
         baseten_api_key: str | None = None,
+        meta_api_key: str | None = None,
+        meta_api_url: str | None = None,
     ) -> None:
         self.model_path = model_path
         self.confidence = confidence
@@ -562,6 +578,8 @@ class SAMDetector:
         self.device = device
         self.baseten_endpoint = (baseten_endpoint or os.getenv("BASETEN_SAM_ENDPOINT", "")).strip()
         self.baseten_api_key = (baseten_api_key or os.getenv("BASETEN_API_KEY", "")).strip()
+        self.meta_api_key = (meta_api_key or os.getenv("META_API_KEY", "")).strip()
+        self.meta_api_url = (meta_api_url or os.getenv("META_API_URL", "https://api.meta.ai/v1")).rstrip("/")
         self._sam_model = None
 
         if model_path:
@@ -579,7 +597,79 @@ class SAMDetector:
         except ImportError as exc:
             raise PipelineError("opencv and numpy are required for SAM detection") from exc
 
-        # 1. Baseten remote hosted SAM 3.1 inference
+        # 1. Meta Direct API SAM 3.1 inference
+        sam_mode = os.getenv("SAM_MODEL_MODE", os.getenv("META_SAM_ENABLED", "false")).strip().lower()
+        if sam_mode in {"meta", "api", "true", "1"} and self.meta_api_key and "api.meta.ai" in self.meta_api_url:
+            try:
+                import base64
+                import urllib.request
+                h, w = frame.shape[:2]
+                scale = min(1.0, 640.0 / max(h, w)) if max(h, w) > 0 else 1.0
+                if scale < 1.0:
+                    send_frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
+                else:
+                    send_frame = frame
+                success, buffer = cv2.imencode(".jpg", send_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if success:
+                    b64_image = base64.b64encode(buffer).decode("ascii")
+                    meta_payload = {
+                        "model": "sam-3.1",
+                        "input": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "input_text", "text": "detect and segment all objects, persons, vehicles"},
+                                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64_image}"}
+                                ]
+                            }
+                        ]
+                    }
+                    req = urllib.request.Request(
+                        f"{self.meta_api_url}/responses",
+                        data=json.dumps(meta_payload).encode("utf-8"),
+                        headers={"Authorization": f"Bearer {self.meta_api_key}", "Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=12.0) as resp:
+                        meta_resp = json.loads(resp.read().decode("utf-8"))
+
+                    if meta_resp.get("status") == "completed":
+                        annotations = []
+                        for out in meta_resp.get("output", []):
+                            for c in out.get("content", []):
+                                annotations.extend(c.get("annotations", []))
+                        if annotations:
+                            meta_dets = []
+                            for ann in annotations:
+                                bbox = ann.get("bbox") or ann.get("box_2d")
+                                if bbox:
+                                    ymin, xmin, ymax, xmax = [float(v) for v in bbox]
+                                    if ymax <= 1.0 and xmax <= 1.0:
+                                        left, top, right, bottom = xmin * w, ymin * h, xmax * w, ymax * h
+                                    else:
+                                        left, top, right, bottom = xmin / scale, ymin / scale, xmax / scale, ymax / scale
+                                    cx = (left + right) / 2.0
+                                    cy = (top + bottom) / 2.0
+                                    area = (right - left) * (bottom - top)
+                                    poly = ann.get("polygon") or ((left, top), (right, top), (right, bottom), (left, bottom))
+                                    meta_dets.append(
+                                        DetectedObject(
+                                            label=str(ann.get("label", "object")),
+                                            x=cx,
+                                            y=cy,
+                                            area=area,
+                                            confidence=float(ann.get("confidence", 0.95)),
+                                            bbox=(left, top, right, bottom),
+                                            category=ann.get("category"),
+                                            segmentation_polygon=tuple((float(p[0]), float(p[1])) for p in poly),
+                                        )
+                                    )
+                            if meta_dets:
+                                return tuple(meta_dets)
+            except Exception:
+                pass
+
+        # 2. Baseten remote hosted SAM 3.1 inference
         if self.baseten_endpoint and self.baseten_api_key:
             try:
                 import base64
