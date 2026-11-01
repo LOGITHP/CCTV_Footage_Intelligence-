@@ -1,0 +1,17 @@
+model_name: sam-3-1
+python_version: py311
+requirements:
+  - torch>=2.2.0
+  - ultralytics>=8.2.0
+  - opencv-python-headless>=4.9.0
+  - numpy>=1.26.0
+  - pillow>=10.0.0
+resources:
+  cpu: "4"
+  memory: 8Gi
+  use_gpu: false
+model_metadata:
+  example_model_input:
+    image_b64: ""
+    confidence: 0.35
+    min_area: 25.0

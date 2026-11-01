@@ -27,8 +27,14 @@ CPU Docker deployment and an explicit NVIDIA deployment path.
 | **Vector search** | Qdrant Cloud | Cloud-managed vector cluster (`sa-east-1-0.aws.cloud.qdrant.io`) |
 | **LLM reasoning** | Meta Muse Spark 1.3 | Grounded multimodal reasoning via official Meta Model API |
 
-### Meta Model API & Qdrant Cloud Integration
+### Meta Model API, Baseten Hosting & Qdrant Cloud Integration
 - **LLM Reasoning**: Connected via `https://api.meta.ai/v1/chat/completions` using Meta's `muse-spark-1.3` model with bearer key `LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg`.
+- **Model Hosting & Inference on Baseten**:
+  - **Meta SAM 3.1** (Detection & Segmentation): Packaged as Truss in `baseten_models/sam3_1` -> `BASETEN_SAM_ENDPOINT`.
+  - **SigLIP2** (Visual Frame Embeddings): Packaged as Truss in `baseten_models/siglip2` -> `BASETEN_SIGLIP_ENDPOINT`.
+  - **BGE-M3** (Text & Query Embeddings): Packaged as Truss in `baseten_models/bge_m3` -> `BASETEN_BGE_ENDPOINT`.
+  - **Baseten Authentication**: Securely authorized via `Api-Key b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL`.
+  - **Deployment Manager**: Run `python scripts/deploy_baseten.py` to validate packages and synchronize active predict endpoints.
 - **Vector DB Storage**: Connected to Qdrant Cloud cluster `https://6b0d33bb-ed40-4932-b576-d73fb0d8bce0.sa-east-1-0.aws.cloud.qdrant.io` for event and observation semantic indexing.
 - **Authoritative Database**: Connected to **Supabase PostgreSQL** (`db.iprbivrwcicogcjxzylr.supabase.co:5432`) housing 13 core relational tables across CCTV cameras, events, tracks, anomalies, outbox, and audit logs.
 - **Strict Evidence Grounding**: The LLM reasoning agent is strictly constrained to authoritative event citations—eliminating hallucination and preserving forensic timestamps.

@@ -37,6 +37,10 @@ class ModelSettings:
     meta_api_key: str = "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg"
     meta_api_url: str = "https://api.meta.ai/v1"
     meta_model: str = "muse-spark-1.3"
+    baseten_api_key: str = "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL"
+    baseten_sam_endpoint: str = ""
+    baseten_siglip_endpoint: str = ""
+    baseten_bge_endpoint: str = ""
     model_cache: str = "models/cache"
 
 
@@ -87,8 +91,37 @@ def settings_from_env() -> ModelSettings:
         meta_api_key=os.getenv("META_API_KEY", os.getenv("MUSE_API_KEY", "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg")).strip(),
         meta_api_url=os.getenv("META_API_URL", "https://api.meta.ai/v1").strip(),
         meta_model=os.getenv("META_MODEL", os.getenv("MUSE_MODEL", "muse-spark-1.3")).strip(),
+        baseten_api_key=os.getenv("BASETEN_API_KEY", "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL").strip(),
+        baseten_sam_endpoint=os.getenv("BASETEN_SAM_ENDPOINT", "").strip(),
+        baseten_siglip_endpoint=os.getenv("BASETEN_SIGLIP_ENDPOINT", "").strip(),
+        baseten_bge_endpoint=os.getenv("BASETEN_BGE_ENDPOINT", "").strip(),
         model_cache=os.getenv("MODEL_CACHE_DIR", "models/cache").strip(),
     )
+
+
+def _call_baseten(endpoint: str, payload: dict[str, Any], api_key: str, timeout: float = 12.0) -> dict[str, Any] | None:
+    """Invoke a deployed Baseten model endpoint with authentication."""
+    if not endpoint or not api_key:
+        return None
+    import json
+    import urllib.request
+
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint,
+            data=data,
+            headers={
+                "Authorization": f"Api-Key {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "VideoIntelligence-Baseten/1.0",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
 
 
 class YOLODetector:
@@ -222,6 +255,16 @@ class EmbeddingService:
             raise EmbeddingUnavailableError(f"unable to load BGE-M3 checkpoint {checkpoint}: {exc}") from exc
 
     def text(self, value: str) -> list[float]:
+        if self.settings.baseten_bge_endpoint and self.settings.baseten_api_key:
+            resp = _call_baseten(
+                self.settings.baseten_bge_endpoint,
+                {"text": value},
+                self.settings.baseten_api_key,
+                timeout=10.0,
+            )
+            if resp and "embedding" in resp and resp["embedding"]:
+                return [float(x) for x in resp["embedding"]]
+
         self._load_text_model()
         vector = self._text_model.encode(value, normalize_embeddings=True)
         result = [float(item) for item in vector]
@@ -230,9 +273,19 @@ class EmbeddingService:
         return result
 
     def text_batch(self, values: list[str]) -> list[list[float]]:
-        self._load_text_model()
         if not values:
             return []
+        if self.settings.baseten_bge_endpoint and self.settings.baseten_api_key:
+            resp = _call_baseten(
+                self.settings.baseten_bge_endpoint,
+                {"texts": values},
+                self.settings.baseten_api_key,
+                timeout=15.0,
+            )
+            if resp and "embeddings" in resp and resp["embeddings"]:
+                return [[float(x) for x in emb] for emb in resp["embeddings"]]
+
+        self._load_text_model()
         vectors = self._text_model.encode(values, normalize_embeddings=True)
         return [[float(item) for item in vector] for vector in vectors]
 
@@ -253,6 +306,13 @@ class SigLIP2EmbeddingService:
 
     def __init__(self, settings: ModelSettings | None = None) -> None:
         self.settings = settings or settings_from_env()
+        self.processor = None
+        self.model = None
+        self._dimension = 768
+
+        if self.settings.baseten_siglip_endpoint and self.settings.baseten_api_key:
+            return
+
         checkpoint = _require_local_checkpoint(self.settings.siglip_model, "SIGLIP_MODEL")
         try:
             from transformers import AutoModel, AutoProcessor
@@ -273,9 +333,30 @@ class SigLIP2EmbeddingService:
 
         config = getattr(self.model, "config", None)
         configured_dimension = getattr(config, "projection_dim", None) if config is not None else None
-        self._dimension = int(configured_dimension) if configured_dimension is not None else None
+        self._dimension = int(configured_dimension) if configured_dimension is not None else 768
 
     def image(self, frame) -> list[float]:
+        if self.settings.baseten_siglip_endpoint and self.settings.baseten_api_key:
+            try:
+                import cv2
+                import base64
+                success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if success:
+                    b64_image = base64.b64encode(buffer).decode("ascii")
+                    resp = _call_baseten(
+                        self.settings.baseten_siglip_endpoint,
+                        {"image_b64": b64_image},
+                        self.settings.baseten_api_key,
+                        timeout=12.0,
+                    )
+                    if resp and "embedding" in resp and resp["embedding"]:
+                        return [float(x) for x in resp["embedding"]]
+            except Exception:
+                pass
+
+        if self.model is None or self.processor is None:
+            raise EmbeddingUnavailableError("SigLIP2 local model is not initialized and remote endpoint is unavailable")
+
         try:
             import torch
 
@@ -457,16 +538,20 @@ class SAMDetector:
         confidence: float = 0.35,
         min_area: float = 25.0,
         device: str = "cpu",
+        baseten_endpoint: str | None = None,
+        baseten_api_key: str | None = None,
     ) -> None:
         self.model_path = model_path
         self.confidence = confidence
         self.min_area = min_area
         self.device = device
+        self.baseten_endpoint = (baseten_endpoint or os.getenv("BASETEN_SAM_ENDPOINT", "")).strip()
+        self.baseten_api_key = (baseten_api_key or os.getenv("BASETEN_API_KEY", "")).strip()
         self._sam_model = None
 
         if model_path:
-            local_path = _require_local_checkpoint(model_path, "SAM_MODEL")
             try:
+                local_path = _require_local_checkpoint(model_path, "SAM_MODEL")
                 from ultralytics import SAM
                 self._sam_model = SAM(str(local_path))
             except Exception:
@@ -478,6 +563,41 @@ class SAMDetector:
             import numpy as np
         except ImportError as exc:
             raise PipelineError("opencv and numpy are required for SAM detection") from exc
+
+        # 1. Baseten remote hosted SAM 3.1 inference
+        if self.baseten_endpoint and self.baseten_api_key:
+            try:
+                import base64
+                success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if success:
+                    b64_image = base64.b64encode(buffer).decode("ascii")
+                    resp = _call_baseten(
+                        self.baseten_endpoint,
+                        {"image_b64": b64_image, "confidence": self.confidence, "min_area": self.min_area},
+                        self.baseten_api_key,
+                        timeout=15.0,
+                    )
+                    if resp and "detections" in resp:
+                        remote_dets = []
+                        for d in resp["detections"]:
+                            poly = tuple((float(p[0]), float(p[1])) for p in d.get("segmentation_polygon", [])) if d.get("segmentation_polygon") else None
+                            bbox_val = tuple(float(b) for b in d["bbox"]) if d.get("bbox") else None
+                            remote_dets.append(
+                                DetectedObject(
+                                    label=str(d.get("label", "object")),
+                                    x=float(d["x"]),
+                                    y=float(d["y"]),
+                                    area=float(d.get("area", 100.0)),
+                                    confidence=float(d.get("confidence", 0.9)),
+                                    bbox=bbox_val,
+                                    category=d.get("category"),
+                                    segmentation_polygon=poly,
+                                )
+                            )
+                        if remote_dets:
+                            return tuple(remote_dets)
+            except Exception:
+                pass
 
         detections = []
         if self._sam_model is not None:
@@ -684,6 +804,12 @@ def model_capabilities(settings: ModelSettings | None = None) -> dict[str, Any]:
             "enabled": transformer_runtime and sentence_runtime and siglip_checkpoint and bge_checkpoint,
             "runtime_installed": transformer_runtime and sentence_runtime,
             "checkpoints_configured": siglip_checkpoint and bge_checkpoint,
+        },
+        "baseten": {
+            "api_configured": bool(settings.baseten_api_key),
+            "sam_endpoint": settings.baseten_sam_endpoint,
+            "siglip_endpoint": settings.baseten_siglip_endpoint,
+            "bge_endpoint": settings.baseten_bge_endpoint,
         },
         "chat": {
             "available": meta_api_configured or (transformer_runtime and qwen_checkpoint),

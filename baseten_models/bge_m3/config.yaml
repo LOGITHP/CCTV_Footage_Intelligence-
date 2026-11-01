@@ -1,0 +1,12 @@
+model_name: bge-m3
+python_version: py311
+requirements:
+  - sentence-transformers>=3.0.0
+  - torch>=2.2.0
+resources:
+  cpu: "2"
+  memory: 4Gi
+  use_gpu: false
+model_metadata:
+  example_model_input:
+    text: "person in dark jacket crossing gate"

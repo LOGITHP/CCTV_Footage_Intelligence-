@@ -1,0 +1,14 @@
+model_name: siglip2
+python_version: py311
+requirements:
+  - transformers>=4.40.0
+  - torch>=2.2.0
+  - torchvision>=0.17.0
+  - pillow>=10.0.0
+resources:
+  cpu: "2"
+  memory: 4Gi
+  use_gpu: false
+model_metadata:
+  example_model_input:
+    image_b64: ""

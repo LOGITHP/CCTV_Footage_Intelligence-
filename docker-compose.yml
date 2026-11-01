@@ -40,6 +40,12 @@ services:
       - QDRANT_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6NzgyNWY1ZTItZjRiNi00ZjEzLTk2YmQtYjA1MDIwOGYwMDZiIn0._Wq5qyrC0AeFJwAZieBzQsz_baWyA3vdNEX3hwTsiaA
       - QDRANT_COLLECTION=video-events
 
+      # --- Baseten Model Services (SAM 3.1, SigLIP2, BGE-M3) ---
+      - BASETEN_API_KEY=b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL
+      - BASETEN_SAM_ENDPOINT=${BASETEN_SAM_ENDPOINT:-https://model-sam-3-1.api.baseten.co/production/predict}
+      - BASETEN_SIGLIP_ENDPOINT=${BASETEN_SIGLIP_ENDPOINT:-https://model-siglip2.api.baseten.co/production/predict}
+      - BASETEN_BGE_ENDPOINT=${BASETEN_BGE_ENDPOINT:-https://model-bge-m3.api.baseten.co/production/predict}
+
     volumes:
       # Persistent Docker volume storing actual video recordings, evidence clips, and databases
       - video_data:/app/data
