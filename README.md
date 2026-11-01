@@ -83,6 +83,245 @@ python scripts/migrate_database.py
 python scripts/test_supabase_integration.py
 ```
 
+---
+
+## Detailed Technical Architecture & Mermaid Diagrams
+
+This section provides both the **comprehensive combined system architecture** and **modular deep-dive diagrams** for each subsystem.
+
+---
+
+### 1. Combined End-to-End Technical Architecture
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer["CLIENT & PRESENTATION LAYER"]
+        UI["Web Dashboard (frontend/app.js)"]
+        Canvas["Polygon Zone Editor (HTML5 Canvas)"]
+        Player["Interactive Evidence Video Player"]
+        ChatUI["Grounded Forensic Chat Interface"]
+    end
+
+    subgraph APILayer["API GATEWAY & SECURITY LAYER (FastAPI / Uvicorn)"]
+        AuthMiddleware["JWT Authentication & RBAC Middleware"]
+        VideoEndpoint["/api/v1/videos (Upload & Probe)"]
+        CameraEndpoint["/api/v1/cameras (RTSP Management)"]
+        StreamEndpoint["/api/v1/cameras/{id}/stream (Live Monitor)"]
+        ChatEndpoint["/api/v1/chat (LangGraph Investigation)"]
+        EvidenceEndpoint["/api/v1/evidence/{id}/download (HMAC Signed Clips)"]
+    end
+
+    subgraph PerceptionLayer["PERCEPTION & INGESTION PIPELINE"]
+        Demuxer["FFmpeg Demuxer (PTS Monotonic Preservation)"]
+        FrameSampling["OpenCV Keyframe Extractor & Subsampler"]
+        SAM["Meta SAM 3.1 Segmentation (Meta Direct API / Baseten GPU)"]
+        Tracker["SAMTracker (Trajectory Scoping & Appearance Estimation)"]
+        SigLIP["Google SigLIP 2 Encoder (768d Visual Vectors - Local Docker)"]
+        BGEM3["BAAI BGE-M3 Encoder (1024d Query Vectors - Local Docker)"]
+    end
+
+    subgraph AnomalyLayer["SECURITY POLICY & ANOMALY AGENT"]
+        RuleEngine["Rule Evaluator (anomalies.py)"]
+        LoiterRule["Dwell / Loitering (> 120s)"]
+        SpikeRule["Object Count Spike / Crowding"]
+        ZoneRule["Forbidden Zone Breach (Shapely Polygon)"]
+        TamperRule["Camera Silence / Feed Dropout"]
+        AutoClip["FFmpeg Auto-Evidence Trimmer (evidence.py)"]
+    end
+
+    subgraph StorageLayer["MULTI-TIER STORAGE & PERSISTENCE TIERS"]
+        MinIO[("MinIO Local S3 Storage<br/>• Raw Video Files (.mp4)<br/>• Trimmed Evidence Clips")]
+        Supabase[("Supabase Cloud PostgreSQL 15<br/>• 13 Relational Tables<br/>• Cameras, Events, Tracks, Alerts")]
+        Qdrant[("Qdrant Cloud Vector DB<br/>• 768d Visual Embeddings<br/>• 1024d Text Embeddings")]
+        OutboxQueue[("Transactional Outbox Queue<br/>• Webhook / Email Notifications")]
+    end
+
+    subgraph LangGraphLayer["LANGGRAPH FORENSIC INVESTIGATION AGENT"]
+        LGPlan["Node 1: Query Hypothesis & Parameter Planner"]
+        LGRetrieve["Node 2: Dual-Index Tool Execution (Qdrant + Supabase)"]
+        LGReflect{"Node 3: Self-Correction Gate<br/>Matches == 0 & Iter < 2?"}
+        LGRefine["Refine Plan: Loosen Labels & Widen Windows"]
+        LGTrim["Node 4: Dynamic Video Trimmer (create_clip ±4s)"]
+        LGReason["Node 5: Meta Muse Spark Open LLM (Baseten Inference API)"]
+    end
+
+    %% Interactions
+    UI --> AuthMiddleware
+    AuthMiddleware --> VideoEndpoint & CameraEndpoint & StreamEndpoint & ChatEndpoint & EvidenceEndpoint
+
+    VideoEndpoint --> Demuxer
+    Demuxer --> FrameSampling
+    FrameSampling --> SAM
+    SAM --> Tracker
+    Tracker --> SigLIP
+    SigLIP --> Qdrant
+    Tracker --> Supabase
+    Demuxer --> MinIO
+
+    StreamEndpoint --> RuleEngine
+    RuleEngine --> LoiterRule & SpikeRule & ZoneRule & TamperRule
+    LoiterRule & SpikeRule & ZoneRule & TamperRule --> AutoClip
+    AutoClip --> MinIO
+    AutoClip --> OutboxQueue
+
+    ChatEndpoint --> LGPlan
+    LGPlan --> LGRetrieve
+    LGRetrieve --> LGReflect
+    LGReflect -- "0 Matches (Self-Correction)" --> LGRefine
+    LGRefine --> LGRetrieve
+    LGReflect -- "Matches Verified" --> LGTrim
+    LGTrim --> MinIO
+    LGTrim --> LGReason
+    LGReason --> ChatUI
+    EvidenceEndpoint --> Player
+```
+
+---
+
+### 2. Perception & Ingestion Pipeline Architecture
+
+```mermaid
+flowchart LR
+    subgraph VideoSource["1. Video Ingestion"]
+        A["RTSP Live Stream / MP4 File Upload"]
+    end
+
+    subgraph Decoding["2. Source-Accurate Decoding"]
+        B["FFprobe Stream Metadata Probe"] --> C["FFmpeg Demuxer"]
+        C --> D["Monotonic PTS Preserver<br/>(Rejects FPS guesswork)"]
+        D --> E["OpenCV Keyframe Sampling<br/>(Stride e.g. 0.5s)"]
+    end
+
+    subgraph VisionAI["3. Meta AI & Embedding Models"]
+        E --> F["Meta SAM 3.1 Segmentation<br/>(Meta Direct API / Baseten GPU)"]
+        F --> G["Sub-Pixel Boundary Polygons<br/>& Bounding Boxes"]
+        G --> H["SAMTracker Multi-Object Association<br/>• Camera-scoped Track IDs<br/>• Non-biometric Appearance Cues"]
+        H --> I["Google SigLIP 2 Vision Model<br/>(Local Docker Container)"]
+        I --> J["768-dim Visual Embedding Vectors"]
+    end
+
+    subgraph StorageOutputs["4. Output Routing"]
+        A --> K[("MinIO S3 Bucket<br/>(Original Footage)")]
+        H --> L[("Supabase PostgreSQL<br/>(Observations & Tracks)")]
+        J --> M[("Qdrant Cloud<br/>(video-events Collection)")]
+    end
+
+    A --> B
+```
+
+---
+
+### 3. Multi-Tier Storage & Persistence Topology
+
+```mermaid
+flowchart TD
+    subgraph Tier1["TIER 1: RAW & EVIDENCE OBJECT STORAGE"]
+        S3["MinIO Local S3 Container (Port 9000 API / 9001 Web UI)"]
+        S3Bucket1["Bucket: video-intelligence/videos/original/"]
+        S3Bucket2["Bucket: video-intelligence/videos/evidence/"]
+        S3 --> S3Bucket1 & S3Bucket2
+    end
+
+    subgraph Tier2["TIER 2: RELATIONAL & TRANSACTIONAL STORE"]
+        PG["Supabase Cloud PostgreSQL 15 (Port 5432)"]
+        T1["videos & jobs"]
+        T2["events & track_observations"]
+        T3["cameras & camera_sessions"]
+        T4["alert_rules & alerts"]
+        T5["outbox_messages & audit_logs"]
+        PG --> T1 & T2 & T3 & T4 & T5
+    end
+
+    subgraph Tier3["TIER 3: MULTIMODAL VECTOR ENGINE"]
+        Qdrant["Qdrant Cloud (AWS AWS Cluster)"]
+        QCol1["Collection: video-events"]
+        QVector1["768d Visual Vectors (SigLIP 2)"]
+        QVector2["1024d Text Vectors (BGE-M3)"]
+        Qdrant --> QCol1
+        QCol1 --> QVector1 & QVector2
+    end
+
+    subgraph Tier4["TIER 4: AUTHENTICATION & EVIDENCE SIGNER"]
+        Security["Security Subsystem"]
+        Auth["PBKDF2 Salted Password Hashing"]
+        JWT["HMAC-SHA256 JWT Bearer Tokens"]
+        SignedURL["HMAC-SHA256 Tamper-Proof Evidence Signer"]
+        Security --> Auth & JWT & SignedURL
+    end
+```
+
+---
+
+### 4. Real-Time Anomaly & Security Alerting Architecture
+
+```mermaid
+flowchart TD
+    subgraph MonitoringWorker["1. Continuous Camera Monitoring Worker"]
+        RTSP["RTSP Camera Feeds / Infinite Streams"] --> Worker["CameraStreamMonitoringWorker (operations/streaming.py)"]
+        Worker --> Buffer["Ring Buffer & Monotonic Timestamp Clock"]
+    end
+
+    subgraph AnomalyDetection["2. Deterministic Rule Evaluator (anomalies.py)"]
+        Buffer --> Engine["Rule Evaluator Engine"]
+        Engine --> R1["DWELL_DURATION: Loitering Detection (> threshold seconds)"]
+        Engine --> R2["OBJECT_COUNT_SPIKE: Sudden Crowding / Rapid Influx"]
+        Engine --> R3["UNEXPECTED_CATEGORY: Vehicle in Pedestrian Zone"]
+        Engine --> R4["CAMERA_SILENCE: Lens Obstruction / Stream Dropout"]
+    end
+
+    subgraph EvidenceAndAlerts["3. Evidence Capture & Outbox Dispatch"]
+        R1 & R2 & R3 & R4 --> Trigger{"Rule Triggered?"}
+        Trigger -- "Yes" --> Trimmer["FFmpeg Evidence Trimmer (create_clip ±5s)"]
+        Trimmer --> MinIOClip[("MinIO Evidence Store")]
+        Trigger -- "Yes" --> Alert["Record Alert in Supabase alerts Table"]
+        Alert --> Outbox["Enqueue in transactional outbox_messages Table"]
+        Outbox --> Dispatcher["Celery Outbox Worker"]
+        Dispatcher --> Notifiers["Webhook Endpoints & SMTP Email Dispatch"]
+    end
+```
+
+---
+
+### 5. LangGraph Investigative Agent & Dynamic Clip Trimming
+
+```mermaid
+flowchart TD
+    subgraph Input["1. User Inquiry"]
+        Query["User Prompt:<br/>'Did any red vehicle enter the secure gate between 10:00 and 10:15?'"]
+    end
+
+    subgraph LangGraphAgent["2. LangGraph Investigative State Machine (investigation_graph.py)"]
+        PlanNode["Node 1: plan_investigation<br/>• Extracts label: vehicle / car<br/>• Extracts zone: secure_gate<br/>• Extracts action: enter<br/>• Formulates search envelope"]
+        
+        RetrieveNode["Node 2: retrieve_evidence<br/>• Qdrant Dense Vector Search (BGE-M3)<br/>• Supabase Relational Query (events & tracks)"]
+        
+        ReflectGate{"Node 3: reflect_and_refine<br/>Matches Found?"}
+        
+        RefineStep["Self-Correction Loop:<br/>• Widen temporal window ±5 mins<br/>• Relax specific label to general object<br/>• Increment iteration count"]
+        
+        TrimClipNode["Node 4: trim_evidence_clip<br/>• Calculates exact interval [ts - 4.0s, ts + 4.0s]<br/>• Executes FFmpeg create_clip()<br/>• Formats interval '00:08 - 00:16'<br/>• Syncs trimmed MP4 with MinIO"]
+        
+        ReasonNode["Node 5: grounded_reasoning<br/>• Attaches verified citation JSON<br/>• Invokes Meta Muse Spark Open via Baseten Inference API<br/>• Strictly grounds response to citations"]
+
+        PlanNode --> RetrieveNode
+        RetrieveNode --> ReflectGate
+        ReflectGate -- "0 Matches & Iteration < 2" --> RefineStep
+        RefineStep --> RetrieveNode
+        ReflectGate -- "Verified Matches Ready" --> TrimClipNode
+        TrimClipNode --> ReasonNode
+    end
+
+    subgraph OutputPresentation["3. Frontend Presentation"]
+        ReasonNode --> ChatResponse["Forensic Answer with Verified Citations"]
+        TrimClipNode --> VideoPlayer["Inline Playable HTML5 Video Player<br/>(frontend/app.js)"]
+        ChatResponse & VideoPlayer --> UI["Investigator Dashboard Display"]
+    end
+
+    Query --> PlanNode
+```
+
+---
+
 ## 1. Repository layout
 
 ```text

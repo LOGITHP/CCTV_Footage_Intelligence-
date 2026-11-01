@@ -89,3 +89,4 @@ def test_investigation_graph_with_match_and_clip_trimming(tmp_path, monkeypatch)
     assert clip["interval_formatted"] == "00:08 - 00:16"
     assert "clip-evt-001.mp4" in clip["clip_filename"]
     assert Path(clip["clip_path"]).is_file()
+
