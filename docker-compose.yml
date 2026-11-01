@@ -9,6 +9,9 @@ services:
     container_name: video-intelligence
     ports:
       - "8000:8000"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       # --- JWT Authentication (Enforced) ---
       - AUTH_REQUIRED=true

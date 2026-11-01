@@ -93,18 +93,26 @@ def node_retrieve_evidence(state: InvestigationGraphState) -> dict[str, Any]:
     camera_id = state.get("camera_id")
     session_id = state.get("session_id")
 
-    scoped_video_ids = _scoped_video_ids(store, camera_id=camera_id, session_id=session_id)
-    if video_id:
-        scoped_video_ids = (video_id,)
+    try:
+        scoped_video_ids = _scoped_video_ids(store, camera_id=camera_id, session_id=session_id)
+        if video_id:
+            scoped_video_ids = (video_id,)
 
-    matches = _search_scoped_events(
-        store,
-        video_ids=scoped_video_ids,
-        object_id=plan_dict.get("object_id"),
-        zone_id=plan_dict.get("zone_id"),
-        object_label=plan_dict.get("object_label"),
-        event_type=plan_dict.get("event_type"),
-    )
+        matches = _search_scoped_events(
+            store,
+            video_ids=scoped_video_ids,
+            object_id=plan_dict.get("object_id"),
+            zone_id=plan_dict.get("zone_id"),
+            object_label=plan_dict.get("object_label"),
+            event_type=plan_dict.get("event_type"),
+        )
+    except Exception as error:
+        import logging
+        logging.getLogger("video_intelligence").warning(
+            "Evidence retrieval encountered transient error (%s); proceeding with 0 matches", error
+        )
+        matches = []
+
     return {
         "matches": matches,
         "iteration": state["iteration"] + 1,
