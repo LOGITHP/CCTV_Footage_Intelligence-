@@ -998,7 +998,17 @@ def tracks(video_id: str, track_id: str | None = None, track_scope: str | None =
 @app.post("/api/v1/chat")
 def chat(request: ChatRequest, principal: UserPrincipal = Depends(app_permission(Permission.CHAT_USE))) -> dict:
     try:
-        result = answer_query(store, request)
+        from .investigation_graph import run_investigation_graph
+
+        result = run_investigation_graph(
+            store,
+            request.message,
+            video_id=request.video_id,
+            camera_id=request.camera_id,
+            session_id=request.session_id,
+            event_id=request.event_id,
+            media_root=media_root,
+        )
     except ModelUnavailableError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     store.add_chat_message(

@@ -836,18 +836,61 @@
           session_id: $('chat-session-id')?.value.trim() || null,
         }),
       });
-      appendChat('assistant', `${body.answer}\n\n${(body.citations || []).length} verified citation(s) · ${body.answer_mode}`);
+      appendChat('assistant', `${body.answer}\n\n${(body.citations || []).length} verified citation(s) · ${body.answer_mode}`, false, body.trimmed_clips || []);
       setStatus('chat-status', `${body.citations?.length || 0} verified citation(s)`);
     } catch (error) { appendChat('assistant', error.message, true); setStatus('chat-status', error.message, true); }
     $('chat-question').value = '';
   }
 
-  function appendChat(role, message, bad = false) {
+  function appendChat(role, message, bad = false, clips = []) {
     const history = $('chat-history');
     if (history.querySelector('.chat-empty')) history.replaceChildren();
     const item = document.createElement('div');
     item.className = `chat-message ${role}${bad ? ' bad' : ''}`;
-    item.textContent = message;
+    
+    const textNode = document.createElement('div');
+    textNode.style.whiteSpace = 'pre-wrap';
+    textNode.textContent = message;
+    item.appendChild(textNode);
+
+    if (Array.isArray(clips) && clips.length > 0) {
+      const clipsContainer = document.createElement('div');
+      clipsContainer.className = 'chat-evidence-clips';
+      clipsContainer.style.marginTop = '10px';
+      clipsContainer.style.display = 'flex';
+      clipsContainer.style.flexDirection = 'column';
+      clipsContainer.style.gap = '8px';
+
+      clips.forEach((clip) => {
+        const clipCard = document.createElement('div');
+        clipCard.style.padding = '8px';
+        clipCard.style.borderRadius = '6px';
+        clipCard.style.background = 'rgba(0, 0, 0, 0.3)';
+        clipCard.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+
+        const badge = document.createElement('div');
+        badge.style.fontSize = '12px';
+        badge.style.fontWeight = 'bold';
+        badge.style.marginBottom = '6px';
+        badge.style.color = '#38bdf8';
+        badge.textContent = `🎬 Trimmed Evidence Clip (${clip.interval_formatted || (clip.timestamp_seconds + 's')})`;
+        clipCard.appendChild(badge);
+
+        if (clip.download_url) {
+          const videoEl = document.createElement('video');
+          videoEl.controls = true;
+          videoEl.src = clip.download_url;
+          videoEl.style.width = '100%';
+          videoEl.style.maxHeight = '220px';
+          videoEl.style.borderRadius = '4px';
+          videoEl.preload = 'metadata';
+          clipCard.appendChild(videoEl);
+        }
+        clipsContainer.appendChild(clipCard);
+      });
+      item.appendChild(clipsContainer);
+    }
+
     history.appendChild(item);
     history.scrollTop = history.scrollHeight;
   }

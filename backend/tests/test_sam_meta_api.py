@@ -67,3 +67,4 @@ def test_sam_detector_meta_api_mock(monkeypatch):
     assert det.bbox == (30.0, 20.0, 70.0, 80.0)
     assert det.category == "person"
     assert len(det.segmentation_polygon) == 4
+
