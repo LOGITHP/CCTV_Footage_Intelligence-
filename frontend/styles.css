@@ -534,3 +534,415 @@ textarea { min-height: 76px; resize: vertical; font-family: ui-monospace, SFMono
   .auth-login-heading h1 { font-size: 29px; }
   .auth-footnote { justify-content: flex-start; text-align: left; }
 }
+
+/* ==========================================================================
+   VI SENTRY — PROFESSIONAL CAMERA MANAGEMENT SYSTEM (VMS / CMS) DESIGN SYSTEM
+   ========================================================================== */
+
+/* Cybernetic Command Center Tactical Tokens */
+:root {
+  --vms-bg: #070a10;
+  --vms-surface: #0d121c;
+  --vms-surface-light: #131a27;
+  --vms-surface-hover: #192335;
+  --vms-border: rgba(0, 229, 255, 0.16);
+  --vms-border-subtle: rgba(255, 255, 255, 0.07);
+  --vms-cyan: #00e5ff;
+  --vms-cyan-dim: rgba(0, 229, 255, 0.14);
+  --vms-emerald: #10b981;
+  --vms-emerald-dim: rgba(16, 185, 129, 0.14);
+  --vms-crimson: #ff1744;
+  --vms-amber: #f59e0b;
+}
+
+[data-theme="dark"] body,
+[data-theme="dark"] .dashboard-shell {
+  background: var(--vms-bg);
+}
+
+/* Tactical Brand & Badges */
+.tactical-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--vms-cyan);
+  background: var(--vms-cyan-dim);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.tactical-badge span {
+  font-size: 8px;
+  color: var(--vms-cyan);
+  animation: live-pulse-anim 2s infinite;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+.brand-sub {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+/* Top Telemetry Strip & Matrix Switcher */
+.vms-telemetry-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 14px;
+  background: rgba(13, 18, 28, 0.88);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 999px;
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+}
+
+.vms-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vms-crimson);
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.live-pulse {
+  width: 7px;
+  height: 7px;
+  background: var(--vms-crimson);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--vms-crimson);
+  animation: live-pulse-anim 1.4s infinite;
+}
+@keyframes live-pulse-anim {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.vms-clock {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 700;
+  color: var(--vms-cyan);
+  letter-spacing: 0.08em;
+}
+.vms-sep {
+  color: rgba(255, 255, 255, 0.2);
+}
+.vms-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  background: var(--vms-cyan-dim);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-radius: 4px;
+  color: var(--vms-cyan);
+  letter-spacing: 0.05em;
+}
+
+.vms-matrix-switcher {
+  display: flex;
+  align-items: center;
+  background: rgba(13, 18, 28, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.matrix-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.matrix-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.matrix-btn.active {
+  background: var(--vms-cyan-dim);
+  color: var(--vms-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+}
+
+/* Hero & Metric Highlights */
+.vms-hero {
+  background: linear-gradient(135deg, #090e18 0%, #111a2d 60%, #064e43 100%) !important;
+  border: 1px solid rgba(0, 229, 255, 0.22) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55) !important;
+}
+
+.vms-metrics .metric-card {
+  background: #0d121c !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-left: 3px solid var(--vms-cyan) !important;
+}
+
+/* ==========================================================================
+   VIDEO MATRIX WALL GRID & CHANNELS
+   ========================================================================== */
+.vms-matrix-grid {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.vms-matrix-grid.grid-2x2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.vms-matrix-grid.grid-1x1 {
+  grid-template-columns: 1fr;
+}
+.vms-matrix-grid.grid-1x1 .vms-video-card:not(.active-feed) {
+  display: none !important;
+}
+.vms-matrix-grid.grid-3x3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 960px) {
+  .vms-matrix-grid.grid-2x2,
+  .vms-matrix-grid.grid-3x3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Video Card Shell */
+.vms-video-card {
+  background: #0b0f17;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.vms-video-card:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+.vms-video-card.active-feed {
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.12);
+}
+
+.vms-video-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(16, 22, 33, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.vms-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vms-feed-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  background: var(--vms-cyan);
+  color: #070a10;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+}
+.vms-feed-meta strong {
+  font-size: 12px;
+  color: #f1f5f9;
+}
+.vms-feed-meta small {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.vms-feed-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vms-timer {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vms-emerald);
+  background: var(--vms-emerald-dim);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.vms-rec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--vms-crimson);
+  background: rgba(255, 23, 68, 0.12);
+  border: 1px solid rgba(255, 23, 68, 0.3);
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+.recording-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--vms-crimson);
+  border-radius: 50%;
+  animation: live-pulse-anim 1s infinite;
+}
+
+/* Frame Viewport & Overlays */
+.vms-frame-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #04060a;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vms-frame-viewport video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+.camera-zone-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+  cursor: default;
+}
+.camera-zone-canvas.drawing-active {
+  cursor: crosshair;
+}
+.aux-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #05080f;
+}
+
+/* Tactical HUD Reticles & Watermark */
+.vms-hud-reticle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-color: rgba(0, 229, 255, 0.7);
+  pointer-events: none;
+  z-index: 8;
+}
+.vms-hud-reticle.tl { top: 10px; left: 10px; border-top: 2px solid; border-left: 2px solid; }
+.vms-hud-reticle.tr { top: 10px; right: 10px; border-top: 2px solid; border-right: 2px solid; }
+.vms-hud-reticle.bl { bottom: 10px; left: 10px; border-bottom: 2px solid; border-left: 2px solid; }
+.vms-hud-reticle.br { bottom: 10px; right: 10px; border-bottom: 2px solid; border-right: 2px solid; }
+
+.vms-hud-watermark {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  z-index: 8;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* Feed Toolbars & Telemetry Tags */
+.vms-feed-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(13, 18, 28, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.camera-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vms-feed-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.aux-toolbar {
+  justify-content: flex-start;
+  gap: 8px;
+}
+.vms-telemetry-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.vms-telemetry-tag.green {
+  color: var(--vms-emerald);
+  background: var(--vms-emerald-dim);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+/* Night-Vision IR FX */
+.aux-feed.nv-mode {
+  filter: sepia(100%) hue-rotate(95deg) saturate(240%) contrast(125%);
+}
+
+/* Presets & Quick Buttons */
+.zone-presets-row,
+.quick-provision-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.btn-preset,
+.pill-btn {
+  border: 1px solid rgba(0, 229, 255, 0.24);
+  background: var(--vms-cyan-dim);
+  color: var(--vms-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.btn-preset:hover,
+.pill-btn:hover {
+  background: rgba(0, 229, 255, 0.25);
+  border-color: var(--vms-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+  transform: translateY(-1px);
+}
+

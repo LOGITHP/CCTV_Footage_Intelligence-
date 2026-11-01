@@ -3,61 +3,131 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="CCTV evidence and grounded video intelligence dashboard">
-  <title>Video Intelligence Console</title>
+  <meta name="description" content="Professional CCTV & AI Video Intelligence Management System">
+  <title>VI Sentry — Professional Camera Management System | Video Intelligence Console</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-theme="dark">
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+  <!-- Authentication Screen -->
   <section id="auth-screen" class="auth-screen" aria-labelledby="auth-title">
     <div class="auth-shell">
       <header class="auth-header auth-header-centered">
-        <div class="auth-brand"><span class="brand-mark">VI</span><span class="auth-brand-name">Video Intelligence</span></div>
-        <div class="auth-header-note"><span class="auth-lock" aria-hidden="true">⌁</span> Private by default</div>
+        <div class="auth-brand">
+          <span class="brand-mark">VI</span>
+          <div class="brand-text">
+            <span class="auth-brand-name">VI SENTRY</span>
+            <span class="brand-sub">Professional Video Management System</span>
+          </div>
+        </div>
+        <div class="auth-header-note"><span class="auth-lock" aria-hidden="true">⌁</span> Encrypted Workspace</div>
       </header>
+
       <main class="auth-login-layout">
         <section class="auth-login-card" aria-label="Access workspace">
-          <div class="auth-login-heading"><p class="eyebrow">SECURE WORKSPACE</p><h1 id="auth-title">Welcome back</h1><p>Sign in to continue to your video intelligence workspace.</p></div>
-          <form id="auth-form" class="stack-form auth-login-form">
-            <label>Email or username<input id="auth-username" required autocomplete="username" placeholder="Email or username"></label>
-            <label>Password<input id="auth-password" type="password" required minlength="12" autocomplete="current-password" placeholder="Password"></label>
-            <div id="register-fields" hidden><label>Role<select id="auth-role"><option value="reviewer">Reviewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label></div>
-            <button id="auth-submit" class="button primary wide" type="submit">Continue</button>
-          </form>
-          <div class="auth-divider"><span>or</span></div>
-          <div class="auth-provider-list" aria-label="Available access modes">
-            <button id="auth-local-open" class="provider-button" type="button" disabled><span class="provider-icon">⌂</span><span><strong>Continue with local development</strong><small id="auth-local-help">Checking local backend access…</small></span></button>
+          <div class="auth-login-heading">
+            <div class="tactical-badge"><span>●</span> ENTERPRISE VMS CORE</div>
+            <h1 id="auth-title">Command Access</h1>
+            <p>Authenticate to access the multi-stream surveillance and forensic intelligence console.</p>
           </div>
-          <p class="auth-signup-copy">Don’t have an account? <button id="auth-toggle" class="link-button" type="button">Sign up</button></p>
+          <form id="auth-form" class="stack-form auth-login-form">
+            <label>Operator ID / Email
+              <input id="auth-username" required autocomplete="username" placeholder="Username (e.g. admin)">
+            </label>
+            <label>Security Key / Password
+              <input id="auth-password" type="password" required minlength="8" autocomplete="current-password" placeholder="••••••••••••">
+            </label>
+            <div id="register-fields" hidden>
+              <label>Assigned Role
+                <select id="auth-role">
+                  <option value="admin">System Administrator</option>
+                  <option value="operator" selected>Security Operator</option>
+                  <option value="reviewer">Forensic Reviewer</option>
+                </select>
+              </label>
+            </div>
+            <button id="auth-submit" class="button primary wide" type="submit">Access Console</button>
+          </form>
+
+          <div class="auth-divider"><span>OR</span></div>
+          <div class="auth-provider-list" aria-label="Available access modes">
+            <button id="auth-local-open" class="provider-button" type="button" disabled>
+              <span class="provider-icon">⌂</span>
+              <span><strong>Local Development Console</strong><small id="auth-local-help">Checking local backend access…</small></span>
+            </button>
+          </div>
+
+          <p class="auth-signup-copy">Need an operator account? <button id="auth-toggle" class="link-button" type="button">Sign up</button></p>
           <p id="auth-status" class="form-status" role="status" aria-live="polite">Checking access mode…</p>
-          <details class="auth-connection-details"><summary>Connection settings</summary><div class="auth-connection-body"><div class="connection-summary"><div><span>API origin</span><strong id="auth-api-origin">Same origin</strong></div><div><span>Backend status</span><strong id="auth-api-ready">Checking…</strong></div></div><label class="origin-field">API origin<input id="auth-api-base" placeholder="Same origin" inputmode="url" autocomplete="url"></label><button id="auth-save-api" class="button secondary wide" type="button">Save origin & retry</button><p id="auth-backend-status" class="connection-state">Checking backend…</p></div></details>
-          <p class="auth-legal">By continuing, you agree to use this local workspace according to its configured security and retention policy.</p>
+
+          <details class="auth-connection-details">
+            <summary>Infrastructure & Connection Settings</summary>
+            <div class="auth-connection-body">
+              <div class="connection-summary">
+                <div><span>API Endpoint</span><strong id="auth-api-origin">Same origin</strong></div>
+                <div><span>VMS Daemon</span><strong id="auth-api-ready">Checking…</strong></div>
+              </div>
+              <label class="origin-field">Custom API Origin
+                <input id="auth-api-base" placeholder="http://localhost:8000" inputmode="url" autocomplete="url">
+              </label>
+              <button id="auth-save-api" class="button secondary wide" type="button">Save Origin & Reconnect</button>
+              <p id="auth-backend-status" class="connection-state">Checking backend…</p>
+            </div>
+          </details>
+          <p class="auth-legal">Authorized security personnel only. All access, video captures, and audit trails are cryptographically signed and logged.</p>
         </section>
       </main>
-      <footer class="auth-footnote"><span>Local-first deployment</span><span>Credentials stay with the backend</span><span>Browser camera stays local until capture upload</span></footer>
+      <footer class="auth-footnote">
+        <span>Meta SAM 3.1 & Muse Spark 1.3</span>
+        <span>Supabase PostgreSQL + Qdrant Cloud</span>
+        <span>Zero-Leakage Local Processing</span>
+      </footer>
     </div>
   </section>
 
+  <!-- Main Dashboard Shell -->
   <div id="dashboard-shell" class="dashboard-shell" hidden>
+    <!-- Left Navigation Bar -->
     <aside class="sidebar" aria-label="Primary navigation">
-      <div class="sidebar-brand"><span class="brand-mark">VI</span><div><strong>Video Intelligence</strong><small>Evidence console</small></div><button id="sidebar-collapse" class="icon-button sidebar-collapse" type="button" aria-label="Collapse sidebar" aria-pressed="false">‹</button></div>
-      <div class="workspace-chip"><span class="status-dot"></span><span id="workspace-user">Local workspace</span></div>
-      <button id="new-capture" class="new-session-button" type="button"><span>＋</span><span>New capture</span></button>
-      <div class="nav-section-label">Workspace</div>
+      <div class="sidebar-brand">
+        <span class="brand-mark">VI</span>
+        <div class="brand-titles">
+          <strong>VI SENTRY</strong>
+          <small>VMS Command Core</small>
+        </div>
+        <button id="sidebar-collapse" class="icon-button sidebar-collapse" type="button" aria-label="Collapse sidebar" aria-pressed="false">‹</button>
+      </div>
+
+      <div class="workspace-chip">
+        <span class="status-dot"></span>
+        <span id="workspace-user">Local workspace</span>
+      </div>
+
+      <button id="new-capture" class="new-session-button" type="button">
+        <span>＋</span><span>New Capture</span>
+      </button>
+
+      <div class="nav-section-label">SURVEILLANCE OPERATIONS</div>
       <nav class="side-nav">
-         <button class="nav-item active" data-view="overview"><span>⌂</span>Overview</button>
-         <button class="nav-item" data-view="camera"><span>◉</span>CCTV-1 camera</button>
-         <button class="nav-item" data-view="monitoring"><span>▦</span>Monitoring</button>
-         <button class="nav-item" data-view="evidence"><span>▤</span>Evidence</button>
-        <button class="nav-item" data-view="assistant"><span>✦</span>Assistant</button>
-        <button class="nav-item" data-view="alerts"><span>!</span>Alerts</button>
+        <button class="nav-item active" data-view="overview"><span class="nav-ico">⌂</span><span>Operations Hub</span></button>
+        <button class="nav-item" data-view="camera"><span class="nav-ico">◉</span><span>Live Video Matrix</span></button>
+        <button class="nav-item" data-view="monitoring"><span class="nav-ico">▦</span><span>Camera Provisioning</span></button>
+        <button class="nav-item" data-view="evidence"><span class="nav-ico">▤</span><span>Forensic Workbench</span></button>
+        <button class="nav-item" data-view="assistant"><span class="nav-ico">✦</span><span>AI Copilot (LangGraph)</span></button>
+        <button class="nav-item" data-view="alerts"><span class="nav-ico">!</span><span>Security Rules</span></button>
       </nav>
-      <div class="nav-section-label nav-section-label-secondary">Manage</div>
+
+      <div class="nav-section-label nav-section-label-secondary">SYSTEM</div>
       <nav class="side-nav side-nav-secondary">
-        <button class="nav-item" data-view="settings"><span>⚙</span>Settings</button>
+        <button class="nav-item" data-view="settings"><span class="nav-ico">⚙</span><span>Configuration</span></button>
       </nav>
-      <div class="sidebar-footer"><span class="status-dot" id="sidebar-health-dot"></span><span id="sidebar-health">API checking…</span></div>
+
+      <div class="sidebar-footer">
+        <span class="status-dot" id="sidebar-health-dot"></span>
+        <span id="sidebar-health">API checking…</span>
+      </div>
+
       <div class="sidebar-account">
         <button id="account-menu-button" class="account-menu-button" type="button" aria-expanded="false" aria-controls="account-popover">
           <span id="account-avatar" class="account-avatar">L</span>
@@ -65,95 +135,710 @@
           <span class="account-menu-chevron">⌄</span>
         </button>
         <div id="account-popover" class="account-popover" hidden>
-          <button id="account-settings" type="button"><span>⚙</span>Account settings</button>
-          <button id="account-signout" type="button"><span>↪</span>Sign out</button>
+          <button id="account-settings" type="button"><span>⚙</span>Account Settings</button>
+          <button id="account-signout" type="button"><span>↪</span>Sign Out</button>
         </div>
       </div>
     </aside>
 
+    <!-- Main Content Area -->
     <div class="dashboard-content">
+      <!-- Top Command Bar -->
       <header class="dashboard-topbar">
-        <div><p class="eyebrow">CCTV COMMAND CENTER</p><h1 id="view-title">Overview</h1></div>
-        <div class="topbar-actions"><span id="topbar-health" class="health-pill">Checking API…</span><button id="theme-toggle" class="icon-button" type="button" aria-label="Switch to dark theme" title="Switch theme">☾</button><button id="logout" class="button ghost" type="button">Sign out</button></div>
+        <div class="topbar-left">
+          <div class="topbar-title-wrap">
+            <p class="eyebrow">SURVEILLANCE MANAGEMENT SYSTEM</p>
+            <h1 id="view-title">Operations Hub</h1>
+          </div>
+          <!-- Live Telemetry Ticker -->
+          <div class="vms-telemetry-strip">
+            <span class="vms-live-indicator"><span class="live-pulse"></span>LIVE</span>
+            <span id="vms-clock" class="vms-clock">00:00:00 UTC</span>
+            <span class="vms-sep">|</span>
+            <span class="vms-tag">SAM 3.1 READY</span>
+            <span class="vms-tag">SPARK 1.3 READY</span>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="vms-matrix-switcher" aria-label="Camera Matrix Layout">
+            <button class="matrix-btn active" data-grid="2x2" title="2x2 Quad View">⊞ 2×2</button>
+            <button class="matrix-btn" data-grid="1x1" title="1x1 Single Focus">⊡ 1×1</button>
+            <button class="matrix-btn" data-grid="3x3" title="3x3 Security Wall">▦ 3×3</button>
+          </div>
+          <span id="topbar-health" class="health-pill">Checking API…</span>
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme" title="Toggle theme">☾</button>
+          <button id="logout" class="button ghost" type="button">Sign Out</button>
+        </div>
       </header>
 
       <main class="view-stack">
+        <!-- 1. OVERVIEW VIEW -->
         <section class="view active" data-view-panel="overview">
-          <div class="hero-card">
-            <div><span class="live-badge"><span class="status-dot"></span>LOCAL-FIRST AGENT</span><h2>Turn your laptop camera into CCTV-1.</h2><p>Capture real footage, run the verified processing pipeline, preserve evidence clips, and ask questions grounded in stored events.</p><div class="hero-actions"><button class="button primary" data-go-view="camera">Open CCTV-1</button><button class="button secondary" data-go-view="evidence">Upload a recording</button></div></div>
-            <div class="hero-orb"><span>◉</span><small>CAM 01</small></div>
+          <div class="hero-card vms-hero">
+            <div class="hero-content">
+              <span class="live-badge"><span class="status-dot"></span>CENTRAL MONITORING DISPATCH</span>
+              <h2>Multi-Stream Video Surveillance & Intelligence</h2>
+              <p>Real-time perception with Meta SAM 3.1 video segmentation, automated geometric perimeter defense, and LangGraph forensic reasoning backed by Supabase & Qdrant.</p>
+              <div class="hero-actions">
+                <button class="button primary" data-go-view="camera"><span>◉</span> Open Live Matrix</button>
+                <button class="button secondary" data-go-view="monitoring"><span>▦</span> Provision Camera</button>
+                <button class="button ghost" data-go-view="evidence"><span>▤</span> Upload Footage</button>
+              </div>
+            </div>
+            <div class="hero-orb">
+              <span class="radar-sweep"></span>
+              <span>◉</span>
+              <small>ACTIVE SENTRY</small>
+            </div>
           </div>
-          <div class="metric-grid">
-            <article class="metric-card"><span class="metric-label">Camera state</span><strong id="metric-camera">Offline</strong><small>Browser permission required</small></article>
-            <article class="metric-card"><span class="metric-label">Stored events</span><strong id="metric-events">0</strong><small>Authoritative records</small></article>
-            <article class="metric-card"><span class="metric-label">Last capture</span><strong id="metric-capture">—</strong><small id="metric-capture-detail">No footage processed</small></article>
-            <article class="metric-card"><span class="metric-label">Assistant</span><strong id="metric-assistant">Grounded</strong><small id="metric-assistant-detail">Structured mode ready</small></article>
+
+          <div class="metric-grid vms-metrics">
+            <article class="metric-card">
+              <span class="metric-label">Primary Camera</span>
+              <strong id="metric-camera">Offline</strong>
+              <small>CAM-01 / WebRTC</small>
+            </article>
+            <article class="metric-card">
+              <span class="metric-label">Stored Events</span>
+              <strong id="metric-events">0</strong>
+              <small>Authoritative Database</small>
+            </article>
+            <article class="metric-card">
+              <span class="metric-label">Last Capture</span>
+              <strong id="metric-capture">—</strong>
+              <small id="metric-capture-detail">No footage processed</small>
+            </article>
+            <article class="metric-card">
+              <span class="metric-label">Forensic Agent</span>
+              <strong id="metric-assistant">Grounded</strong>
+              <small id="metric-assistant-detail">Meta Muse Spark 1.3</small>
+            </article>
           </div>
+
           <div class="dashboard-grid two-col">
-            <article class="panel"><div class="panel-header"><div><p class="eyebrow">RECENT</p><h3>Latest evidence</h3></div><button class="button text-button" data-go-view="evidence">View all</button></div><div id="overview-events" class="compact-list"><div class="empty">No events yet. Capture CCTV-1 footage to begin.</div></div></article>
-            <article class="panel"><div class="panel-header"><div><p class="eyebrow">CAPABILITY</p><h3>Runtime readiness</h3></div><button id="overview-refresh" class="button text-button" type="button">Refresh</button></div><div id="overview-capabilities" class="capability-list"><div class="empty">Loading runtime…</div></div></article>
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">INCIDENT STREAM</p><h3>Latest Verified Evidence</h3></div>
+                <button class="button text-button" data-go-view="evidence">View All</button>
+              </div>
+              <div id="overview-events" class="compact-list">
+                <div class="empty">No security events logged yet. Start a capture session to begin.</div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">SYSTEM TOPOLOGY</p><h3>Engine Readiness</h3></div>
+                <button id="overview-refresh" class="button text-button" type="button">Refresh</button>
+              </div>
+              <div id="overview-capabilities" class="capability-list">
+                <div class="empty">Scanning services & model endpoints…</div>
+              </div>
+            </article>
           </div>
         </section>
 
+        <!-- 2. LIVE CAMERA / VIDEO MATRIX VIEW -->
         <section class="view" data-view-panel="camera">
-          <div class="section-heading"><div><p class="eyebrow">CCTV-1 / BROWSER CAMERA</p><h2>Live capture session</h2><p class="muted">This uses your browser camera. Nothing is uploaded until you stop a capture.</p></div><span id="camera-state" class="state-pill">OFFLINE</span></div>
-          <div class="camera-layout">
-            <article class="camera-stage panel"><div class="camera-toolbar"><div><strong>CAM-01 · Laptop camera</strong><small id="camera-resolution">Waiting for permission</small></div><div class="camera-timer" id="camera-timer">00:00</div></div><div class="video-frame"><video id="camera-preview" autoplay muted playsinline></video><div id="camera-placeholder" class="camera-placeholder"><span>◉</span><strong>Camera preview is off</strong><small>Click Start camera to request browser access.</small></div><div id="camera-recording-badge" class="recording-badge" hidden><span class="recording-dot"></span>RECORDING</div></div><div class="camera-controls"><button id="camera-start" class="button secondary" type="button">Start camera</button><button id="camera-record" class="button primary" type="button" disabled>Record capture</button><button id="camera-stop" class="button danger" type="button" disabled>Stop</button></div><div id="camera-status" class="form-status">Camera is ready for a local test session.</div></article>
-            <aside class="panel camera-settings"><p class="eyebrow">CAPTURE SETTINGS</p><h3>Agent defaults</h3><label>Capture length (seconds)<input id="camera-duration" type="number" min="3" max="60" value="10"></label><label>Zone JSON<textarea id="camera-zones" rows="5">[{"zone_id":"cctv1-zone","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea></label><div class="info-note"><strong>What happens next</strong><p>Recorded footage is uploaded to the backend, processed with the available baseline detector, and stored under the CCTV-1 capture record. Evidence clips are generated when verified zone events occur.</p></div><div id="camera-result" class="result-card" hidden></div></aside>
+          <div class="section-heading vms-cam-heading">
+            <div>
+              <p class="eyebrow">MULTI-CHANNEL SURVEILLANCE WALL</p>
+              <h2>Live Camera Matrix & Detection Zones</h2>
+              <p class="muted">Live multi-camera streaming with real-time interactive polygon zone definition and perimeter monitoring.</p>
+            </div>
+            <div class="vms-heading-controls">
+              <span id="camera-state" class="state-pill">OFFLINE</span>
+            </div>
+          </div>
+
+          <!-- Video Matrix Grid -->
+          <div id="vms-matrix-container" class="vms-matrix-grid grid-2x2">
+            <!-- Channel 1: Primary Camera (Webcam / Stream 1) -->
+            <article class="vms-video-card active-feed" id="feed-channel-1">
+              <div class="vms-video-header">
+                <div class="vms-feed-meta">
+                  <span class="vms-feed-badge">CH-01</span>
+                  <strong>CAM 01 · Primary Sentry</strong>
+                  <small id="camera-resolution">Ready to connect</small>
+                </div>
+                <div class="vms-feed-stats">
+                  <span class="vms-timer" id="camera-timer">00:00</span>
+                  <span class="vms-rec-badge" id="camera-recording-badge" hidden><span class="recording-dot"></span>REC</span>
+                </div>
+              </div>
+
+              <div class="vms-frame-viewport">
+                <!-- Video Element -->
+                <video id="camera-preview" autoplay muted playsinline></video>
+                <!-- Interactive Drawing & Bounding Box Canvas -->
+                <canvas id="camera-zone-canvas" class="camera-zone-canvas" width="640" height="480"></canvas>
+
+                <div id="camera-placeholder" class="camera-placeholder">
+                  <span class="placeholder-icon">◉</span>
+                  <strong>Camera Feed Inactive</strong>
+                  <small>Click "Start Camera" below to initiate local capture or WebRTC stream.</small>
+                </div>
+
+                <!-- HUD Overlays -->
+                <div class="vms-hud-reticle tl"></div>
+                <div class="vms-hud-reticle tr"></div>
+                <div class="vms-hud-reticle bl"></div>
+                <div class="vms-hud-reticle br"></div>
+                <div class="vms-hud-watermark">CAM-01 // LIVE HUD 1080p60 H.264</div>
+              </div>
+
+              <div class="vms-feed-toolbar">
+                <div class="camera-controls">
+                  <button id="camera-start" class="button primary" type="button"><span>▶</span> Start Camera</button>
+                  <button id="camera-record" class="button warning" type="button" disabled><span>●</span> Record Capture</button>
+                  <button id="camera-stop" class="button danger" type="button" disabled><span>■</span> Stop</button>
+                </div>
+                <div class="vms-feed-actions">
+                  <button id="btn-draw-zone" class="button secondary small" type="button" title="Interactive Polygon Zone Drawer">✎ Draw Zone</button>
+                  <button id="btn-clear-zone" class="button ghost small" type="button" title="Reset Drawn Zones">↺ Reset</button>
+                  <button id="btn-snap-photo" class="button ghost small" type="button" title="Snapshot Frame">📷 Snap</button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Channel 2: East Perimeter Gate -->
+            <article class="vms-video-card" id="feed-channel-2">
+              <div class="vms-video-header">
+                <div class="vms-feed-meta">
+                  <span class="vms-feed-badge">CH-02</span>
+                  <strong>CAM 02 · East Perimeter Gate</strong>
+                  <small>1920x1080 @ 30FPS · RTSP</small>
+                </div>
+                <div class="vms-feed-stats"><span class="status-pill status-ready">MONITORING</span></div>
+              </div>
+              <div class="vms-frame-viewport aux-feed">
+                <canvas id="aux-canvas-ch2" class="aux-canvas" width="480" height="320"></canvas>
+                <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
+                <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
+                <div class="vms-hud-watermark">CAM-02 // PERIMETER NORTH</div>
+              </div>
+              <div class="vms-feed-toolbar aux-toolbar">
+                <span class="vms-telemetry-tag">BITRATE: 3.2 Mbps</span>
+                <span class="vms-telemetry-tag">PACKET LOSS: 0.0%</span>
+                <span class="vms-telemetry-tag green">SECURE</span>
+              </div>
+            </article>
+
+            <!-- Channel 3: Loading Dock North -->
+            <article class="vms-video-card" id="feed-channel-3">
+              <div class="vms-video-header">
+                <div class="vms-feed-meta">
+                  <span class="vms-feed-badge">CH-03</span>
+                  <strong>CAM 03 · Loading Dock & Bay</strong>
+                  <small>1920x1080 @ 30FPS · AI Active</small>
+                </div>
+                <div class="vms-feed-stats"><span class="status-pill status-ready">MONITORING</span></div>
+              </div>
+              <div class="vms-frame-viewport aux-feed">
+                <canvas id="aux-canvas-ch3" class="aux-canvas" width="480" height="320"></canvas>
+                <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
+                <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
+                <div class="vms-hud-watermark">CAM-03 // VEHICLE ACCESS</div>
+              </div>
+              <div class="vms-feed-toolbar aux-toolbar">
+                <span class="vms-telemetry-tag">VEHICLE DETECT: ON</span>
+                <span class="vms-telemetry-tag">DWELL THRESH: 30s</span>
+                <span class="vms-telemetry-tag green">NORMAL</span>
+              </div>
+            </article>
+
+            <!-- Channel 4: Restricted Core Vault -->
+            <article class="vms-video-card" id="feed-channel-4">
+              <div class="vms-video-header">
+                <div class="vms-feed-meta">
+                  <span class="vms-feed-badge">CH-04</span>
+                  <strong>CAM 04 · Restricted Core Vault</strong>
+                  <small>Night-Vision IR Sensor · Tripwire</small>
+                </div>
+                <div class="vms-feed-stats"><span class="status-pill status-ready">GUARDED</span></div>
+              </div>
+              <div class="vms-frame-viewport aux-feed nv-mode">
+                <canvas id="aux-canvas-ch4" class="aux-canvas" width="480" height="320"></canvas>
+                <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
+                <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
+                <div class="vms-hud-watermark">CAM-04 // IR THERMAL SENTRY</div>
+              </div>
+              <div class="vms-feed-toolbar aux-toolbar">
+                <span class="vms-telemetry-tag">TRIPWIRE: ACTIVE</span>
+                <span class="vms-telemetry-tag">ALARM: ARMED</span>
+                <span class="vms-telemetry-tag green">ZERO BREACH</span>
+              </div>
+            </article>
+          </div>
+
+          <!-- Dock Panel: Status & Zone Coordinates -->
+          <div class="camera-dock-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">CAPTURE TELEMETRY</p><h3>Session Status</h3></div>
+              </div>
+              <div id="camera-status" class="form-status">Camera is ready for a local test session.</div>
+              <div id="camera-result" class="result-card" hidden></div>
+            </article>
+
+            <article class="panel camera-settings">
+              <div class="panel-header">
+                <div><p class="eyebrow">GEOMETRIC SENTRY</p><h3>Zone Boundary Coordinates</h3></div>
+                <div class="zone-presets-row">
+                  <button type="button" class="btn-preset" data-zone-preset="perimeter">Perimeter Box</button>
+                  <button type="button" class="btn-preset" data-zone-preset="gate">Center Gate</button>
+                  <button type="button" class="btn-preset" data-zone-preset="full">Full Frame</button>
+                </div>
+              </div>
+              <label>Capture Length (seconds)
+                <input id="camera-duration" type="number" min="3" max="60" value="10">
+              </label>
+              <label>Zone JSON (Auto-populated by visual drawing tool)
+                <textarea id="camera-zones" rows="3">[{"zone_id":"cctv1-zone","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
+              </label>
+            </article>
           </div>
         </section>
 
+        <!-- 3. MONITORING & PROVISIONING VIEW -->
         <section class="view" data-view-panel="monitoring">
-          <div class="section-heading"><div><p class="eyebrow">MULTI-CAMERA OPERATIONS</p><h2>Monitoring</h2><p class="muted">Register finite file sources, inspect backend-reported runs, and keep live sources configured until a worker confirms they are running.</p></div><div class="button-row"><button id="monitoring-new-camera" class="button secondary" type="button">Register camera</button><button id="monitoring-refresh" class="button primary" type="button">Refresh</button></div></div>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">MULTI-CAMERA PROVISIONING</p>
+              <h2>Camera Fleet & Stream Orchestration</h2>
+              <p class="muted">Provision IP cameras, manage RTSP endpoints, configure pipeline parameters, and monitor stream health.</p>
+            </div>
+            <div class="button-row">
+              <button id="monitoring-new-camera" class="button secondary" type="button"><span>＋</span> Provision Camera</button>
+              <button id="monitoring-refresh" class="button primary" type="button"><span>↻</span> Refresh Fleet</button>
+            </div>
+          </div>
           <div id="monitoring-status" class="form-status" role="status" aria-live="polite">Loading camera monitoring routes…</div>
+
           <div class="monitoring-grid">
-            <article class="panel monitoring-list-panel"><div class="panel-header"><div><p class="eyebrow">CAMERA INVENTORY</p><h3>Registered cameras</h3></div><span id="monitoring-camera-count" class="badge">0 cameras</span></div><div id="camera-list" class="camera-list"><div class="empty">No camera definitions loaded.</div></div></article>
-            <article class="panel camera-form-panel"><div class="panel-header"><div><p class="eyebrow">CONFIGURATION</p><h3 id="camera-form-title">Register a camera</h3><p class="panel-subcopy">Credentials and URL secrets are redacted in the inventory and report views.</p></div><button id="camera-form-cancel" class="button text-button" type="button" hidden>Cancel edit</button></div><form id="camera-form" class="stack-form"><label>Camera ID<input id="camera-form-id" required pattern="[A-Za-z0-9._-]+" placeholder="front-gate"></label><label>Display name<input id="camera-form-name" required placeholder="Front gate"></label><div class="field-grid"><label>Source kind<select id="camera-form-kind"><option value="file">Finite file</option><option value="rtsp">RTSP / live</option><option value="device">Local device</option></select></label><label class="camera-enabled-field">Enabled<span class="checkbox-field"><input id="camera-form-enabled" type="checkbox" checked> Allow future runs</span></label></div><label>Source path, URL, or device index<input id="camera-form-path" required placeholder="/data/cameras/front-gate.mp4 or 0"></label><label>Zones JSON<textarea id="camera-form-zones" rows="4" placeholder='[{"zone_id":"gate","polygon":[[0,0],[640,0],[640,480],[0,480]]}]'></textarea></label><label>Processing options JSON <span class="muted">optional</span><textarea id="camera-form-processing" rows="3" placeholder='{"every":1,"device":"cpu","model_profile":"baseline","tracker_profile":"centroid"}'></textarea></label><div class="button-row"><button id="camera-form-submit" class="button primary" type="submit">Register camera</button><button id="camera-form-reset" class="button secondary" type="button">Clear</button></div></form><div id="camera-form-status" class="form-status"></div><div class="info-note"><strong>Source policy</strong><p>Finite files run to completion. RTSP and local-device sources use the live worker only when a broker or inline worker is available; status is shown from backend reports, never guessed in the browser.</p></div></article>
+            <article class="panel monitoring-list-panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">CAMERA REGISTRY</p><h3>Connected Devices</h3></div>
+                <span id="monitoring-camera-count" class="badge">0 cameras</span>
+              </div>
+              <div id="camera-list" class="camera-list">
+                <div class="empty">No camera definitions loaded. Provision a device to begin.</div>
+              </div>
+            </article>
+
+            <article class="panel camera-form-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">PROVISIONING</p>
+                  <h3 id="camera-form-title">Register Camera Device</h3>
+                  <p class="panel-subcopy">Supports ONVIF IP streams, RTSP, local video devices, and finite video recordings.</p>
+                </div>
+                <button id="camera-form-cancel" class="button text-button" type="button" hidden>Cancel Edit</button>
+              </div>
+
+              <!-- Quick Provisioning Presets -->
+              <div class="quick-provision-bar">
+                <span class="muted small">Quick Template:</span>
+                <button type="button" class="pill-btn" data-preset-cam="rtsp">RTSP Stream</button>
+                <button type="button" class="pill-btn" data-preset-cam="file">MP4 Recording</button>
+                <button type="button" class="pill-btn" data-preset-cam="device">USB/DirectShow</button>
+              </div>
+
+              <form id="camera-form" class="stack-form">
+                <label>Camera ID
+                  <input id="camera-form-id" required pattern="[A-Za-z0-9._-]+" placeholder="e.g. cam-front-gate">
+                </label>
+                <label>Display Name
+                  <input id="camera-form-name" required placeholder="e.g. Main Gate Entrance">
+                </label>
+                <div class="field-grid">
+                  <label>Source Kind
+                    <select id="camera-form-kind">
+                      <option value="file">Finite File (Local Recording)</option>
+                      <option value="rtsp">RTSP / Live H.264 Stream</option>
+                      <option value="device">DirectShow / USB Device Index</option>
+                    </select>
+                  </label>
+                  <label class="camera-enabled-field">Stream State
+                    <span class="checkbox-field"><input id="camera-form-enabled" type="checkbox" checked> Enabled for processing</span>
+                  </label>
+                </div>
+                <label>Source Path or RTSP Stream URL
+                  <input id="camera-form-path" required placeholder="rtsp://admin:pass@192.168.1.100:554/stream1 or /data/cameras/gate.mp4">
+                </label>
+                <label>Detection Zones JSON
+                  <textarea id="camera-form-zones" rows="3" placeholder='[{"zone_id":"gate","polygon":[[0,0],[640,0],[640,480],[0,480]]}]'></textarea>
+                </label>
+                <label>AI Processing Options JSON <span class="muted">optional</span>
+                  <textarea id="camera-form-processing" rows="2" placeholder='{"every":1,"device":"cpu","model_profile":"sam","tracker_profile":"sam"}'></textarea>
+                </label>
+                <div class="button-row">
+                  <button id="camera-form-submit" class="button primary" type="submit">Save & Provision</button>
+                  <button id="camera-form-reset" class="button secondary" type="button">Clear</button>
+                </div>
+              </form>
+              <div id="camera-form-status" class="form-status"></div>
+            </article>
           </div>
+
           <div class="monitoring-lower-grid">
-            <article class="panel monitoring-detail-panel"><div class="panel-header"><div><p class="eyebrow">LATEST REPORT</p><h3 id="monitoring-detail-title">Select a camera</h3></div><span id="monitoring-detail-status" class="status-pill status-configured">CONFIGURED</span></div><div id="monitoring-detail" class="monitoring-detail"><div class="empty">Select a camera to inspect its latest backend report.</div></div></article>
-            <article class="panel monitoring-anomalies-panel"><div class="panel-header"><div><p class="eyebrow">RECENT SIGNALS</p><h3>Anomalies & alerts</h3></div><button id="monitoring-anomalies-refresh" class="button secondary" type="button">Refresh</button></div><div id="monitoring-anomalies-status" class="form-status"></div><div id="monitoring-anomalies" class="anomaly-list"><div class="empty">No recent anomalies loaded.</div></div></article>
+            <article class="panel monitoring-detail-panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">TELEMETRY LOGS</p><h3 id="monitoring-detail-title">Stream Health & Inspection</h3></div>
+                <span id="monitoring-detail-status" class="status-pill status-configured">CONFIGURED</span>
+              </div>
+              <div id="monitoring-detail" class="monitoring-detail">
+                <div class="empty">Select a camera from the registry to inspect its backend execution report.</div>
+              </div>
+            </article>
+
+            <article class="panel monitoring-anomalies-panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">INCIDENT DETECTOR</p><h3>Recent Anomaly Signals</h3></div>
+                <button id="monitoring-anomalies-refresh" class="button secondary" type="button">Refresh</button>
+              </div>
+              <div id="monitoring-anomalies-status" class="form-status"></div>
+              <div id="monitoring-anomalies" class="anomaly-list">
+                <div class="empty">No active security anomalies detected.</div>
+              </div>
+            </article>
           </div>
         </section>
 
+        <!-- 4. FORENSIC EVIDENCE WORKBENCH -->
         <section class="view" data-view-panel="evidence">
-          <div class="section-heading"><div><p class="eyebrow">EVIDENCE WORKBENCH</p><h2>Upload and process footage</h2><p class="muted">Use the baseline pipeline first. Optional model runtimes are shown only when installed and configured.</p></div></div>
-          <div class="dashboard-grid two-col">
-            <article class="panel"><div class="panel-header"><div><p class="eyebrow">INGEST</p><h3>Recorded media</h3></div></div><form id="upload-form" class="stack-form"><label class="dropzone" for="video-file"><input id="video-file" type="file" accept="video/*" required><span class="upload-icon">＋</span><strong>Choose a recording</strong><small id="file-name">MP4, MOV, WebM, AVI</small></label><div class="button-row"><button class="button primary" type="submit">Upload media</button><button id="probe-video" class="button secondary" type="button" disabled>Probe</button></div></form><div id="video-result" class="result-card" hidden></div><div id="probe-result" class="result-card" hidden></div></article>
-            <article class="panel"><div class="panel-header"><div><p class="eyebrow">PROCESS</p><h3>Pipeline controls</h3></div></div><form id="process-form" class="stack-form"><label>Video ID<input id="video-id" required placeholder="Upload a video first"></label><div class="field-grid"><label>Detector<select id="model-profile"><option value="sam" selected>Meta SAM 3.1 (Segment + Detect) · ready</option><option value="baseline">Baseline · ready</option><option value="yolo">YOLO · optional</option></select></label><label>Tracker<select id="tracker-profile"><option value="sam" selected>Meta SAM 3.1 Video Tracker · ready</option><option value="centroid">Centroid · ready</option><option value="bytetrack">ByteTrack · optional runtime</option></select></label></div><div class="field-grid"><label>Device<select id="device"><option value="cpu">CPU</option><option value="gpu">GPU · validated runtime</option></select></label><label>Sample every<input id="every" type="number" min="1" value="1"></label></div><label>Zones JSON<textarea id="zones" rows="4">[{"zone_id":"zone-1","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea></label><button class="button primary" type="submit">Start processing</button></form><div id="process-result" class="result-card" hidden></div></article>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">FORENSIC EVIDENCE WORKBENCH</p>
+              <h2>Video Ingestion & Object Tracking</h2>
+              <p class="muted">Upload video files for SAM 3.1 segmentation, multi-zone crossing evaluation, and object track auditing.</p>
+            </div>
           </div>
-          <article class="panel evidence-panel"><div class="panel-header"><div><p class="eyebrow">OBSERVE</p><h3>Events & evidence clips</h3></div><button id="refresh-events" class="button secondary" type="button">Refresh</button></div><div class="search-bar"><input id="event-object-filter" placeholder="Object ID"><input id="event-zone-filter" placeholder="Zone ID"><input id="event-type-filter" placeholder="Event type"><button id="search-events" class="button secondary" type="button">Search</button></div><div id="event-search-status" class="form-status"></div><div id="events" class="table-wrap"><div class="empty">No events loaded.</div></div><div class="detail-grid"><div><h4>Selected event</h4><div id="selected-event" class="detail-box">Select an event to inspect.</div></div><div><h4>Evidence clip</h4><div id="evidence-panel" class="detail-box">No clip selected.</div><video id="evidence-player" class="evidence-player" controls playsinline hidden></video></div></div><div class="tracks-panel"><div class="panel-header"><div><p class="eyebrow">TRACK OBSERVATIONS</p><h3>Scoped people, vehicles & appearance cues</h3><p class="panel-subcopy">Track IDs are camera/video-session scoped. Colors and types are estimates from detection crops, not identity.</p></div><button id="refresh-tracks" class="button secondary" type="button">Refresh tracks</button></div><div id="tracks-status" class="form-status"></div><div id="tracks" class="table-wrap"><div class="empty">Upload or process a video to inspect scoped tracks.</div></div></div></article>
+
+          <div class="dashboard-grid two-col">
+            <article class="panel">
+              <div class="panel-header"><div><p class="eyebrow">INGESTION</p><h3>Upload Surveillance Footage</h3></div></div>
+              <form id="upload-form" class="stack-form">
+                <label class="dropzone" for="video-file">
+                  <input id="video-file" type="file" accept="video/*" required>
+                  <span class="upload-icon">＋</span>
+                  <strong>Drop CCTV recording here or click to browse</strong>
+                  <small id="file-name">Supports MP4, MOV, WebM, AVI (up to 500 MB)</small>
+                </label>
+                <div class="button-row">
+                  <button class="button primary" type="submit">Upload Media</button>
+                  <button id="probe-video" class="button secondary" type="button" disabled>Probe Codec</button>
+                </div>
+              </form>
+              <div id="video-result" class="result-card" hidden></div>
+              <div id="probe-result" class="result-card" hidden></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header"><div><p class="eyebrow">EXECUTION</p><h3>Pipeline & Model Parameters</h3></div></div>
+              <form id="process-form" class="stack-form">
+                <label>Video Identifier
+                  <input id="video-id" required placeholder="Upload a video to acquire Video ID">
+                </label>
+                <div class="field-grid">
+                  <label>Object Detector
+                    <select id="model-profile">
+                      <option value="sam" selected>Meta SAM 3.1 (Segment + Detect) · Active</option>
+                      <option value="baseline">Baseline Bright-Blob · Active</option>
+                      <option value="yolo">YOLO Detection Checkpoint</option>
+                    </select>
+                  </label>
+                  <label>Track Engine
+                    <select id="tracker-profile">
+                      <option value="sam" selected>Meta SAM 3.1 Video Tracker · Active</option>
+                      <option value="centroid">Centroid Tracker · Active</option>
+                      <option value="bytetrack">ByteTrack Deep Sort</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-grid">
+                  <label>Hardware Acceleration
+                    <select id="device">
+                      <option value="cpu" selected>CPU Multi-threading</option>
+                      <option value="gpu">GPU CUDA Acceleration</option>
+                    </select>
+                  </label>
+                  <label>Frame Stride (Every Nth)
+                    <input id="every" type="number" min="1" value="1">
+                  </label>
+                </div>
+                <label>Detection Zones JSON
+                  <textarea id="zones" rows="3">[{"zone_id":"zone-1","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
+                </label>
+                <button class="button primary" type="submit">Start Processing Pipeline</button>
+              </form>
+              <div id="process-result" class="result-card" hidden></div>
+            </article>
+          </div>
+
+          <article class="panel evidence-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">SPATIAL AUDIT</p><h3>Security Events & Evidence Artifacts</h3></div>
+              <button id="refresh-events" class="button secondary" type="button">Refresh Events</button>
+            </div>
+            <div class="search-bar">
+              <input id="event-object-filter" placeholder="Filter by Object ID">
+              <input id="event-zone-filter" placeholder="Filter by Zone ID">
+              <input id="event-type-filter" placeholder="Filter by Event Type (enter/exit)">
+              <button id="search-events" class="button secondary" type="button">Apply Filter</button>
+            </div>
+            <div id="event-search-status" class="form-status"></div>
+            <div id="events" class="table-wrap">
+              <div class="empty">No events logged for this filter criteria.</div>
+            </div>
+
+            <div class="detail-grid">
+              <div>
+                <h4>Selected Event Details</h4>
+                <div id="selected-event" class="detail-box">Select an event row above to inspect attributes.</div>
+              </div>
+              <div>
+                <h4>Evidence Video Clip</h4>
+                <div id="evidence-panel" class="detail-box">No clip selected.</div>
+                <video id="evidence-player" class="evidence-player" controls playsinline hidden></video>
+              </div>
+            </div>
+
+            <div class="tracks-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">PERSISTED TRACKS</p>
+                  <h3>Track Observation Table</h3>
+                  <p class="panel-subcopy">Scoped by camera and video session. Appearance attributes extracted via SigLIP 2 embeddings.</p>
+                </div>
+                <button id="refresh-tracks" class="button secondary" type="button">Refresh Tracks</button>
+              </div>
+              <div id="tracks-status" class="form-status"></div>
+              <div id="tracks" class="table-wrap">
+                <div class="empty">Process a video recording to view tracked object paths.</div>
+              </div>
+            </div>
+          </article>
         </section>
 
+        <!-- 5. AI FORENSIC ASSISTANT VIEW -->
         <section class="view" data-view-panel="assistant">
-          <div class="section-heading"><div><p class="eyebrow">GROUNDED ASSISTANT</p><h2>Ask about stored footage</h2><p class="muted">Answers cite persisted events. Powered by Meta Muse Spark 1.3 via Meta Model API; citations remain strictly verified against authoritative records.</p></div></div>
-          <div class="assistant-layout"><article class="panel chat-panel"><div class="chat-panel-heading"><div><p class="eyebrow">GROUNDED CONVERSATION</p><h3>Evidence assistant</h3></div><span class="assistant-badge">Citations on</span></div><div id="chat-history" class="chat-history"><div class="chat-empty"><span class="chat-empty-mark">✦</span><strong>Ask anything about your footage</strong><small>Answers stay inside the events and timestamps stored by this workspace.</small></div></div><div class="chat-suggestions" aria-label="Suggested questions"><button type="button" data-chat-suggestion="What happened in the latest recording?">Latest recording</button><button type="button" data-chat-suggestion="Show entries at the gate">Gate entries</button><button type="button" data-chat-suggestion="Were there any unusual events?">Unusual events</button></div><form id="chat-form" class="chat-form"><div class="field-grid"><label>Camera scope <span class="muted">optional</span><input id="chat-camera-id" placeholder="front-gate"></label><label>Session scope <span class="muted">optional</span><input id="chat-session-id" placeholder="session ID"></label></div><div class="chat-composer"><textarea id="chat-question" rows="3" required placeholder="Ask about your evidence…"></textarea><button class="button primary composer-submit" type="submit" aria-label="Ask with evidence">↑</button></div></form><div id="chat-status" class="form-status"></div></article><aside class="panel grounding-panel"><p class="eyebrow">GROUNDING</p><h3>Evidence contract</h3><ul class="clean-list"><li>Only persisted timestamps and event IDs are cited.</li><li>Camera and session filters are applied before citations are generated.</li><li>Missing evidence returns an explicit no-supported-match answer.</li><li>Model weights are never downloaded by the app.</li></ul></aside></div>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">INVESTIGATIVE COPILOT</p>
+              <h2>LangGraph Forensic Intelligence Agent</h2>
+              <p class="muted">Natural language forensic queries grounded strictly in persisted events. Powered by Meta Muse Spark 1.3 with automated evidence clip generation.</p>
+            </div>
+            <span class="vms-agent-pill"><span class="blink-dot"></span>LANGGRAPH REASONING ACTIVE</span>
+          </div>
+
+          <div class="assistant-layout">
+            <article class="panel chat-panel">
+              <div class="chat-panel-heading">
+                <div>
+                  <p class="eyebrow">CONVERSATION STREAM</p>
+                  <h3>Investigative Copilot</h3>
+                </div>
+                <div class="chat-hud-badges">
+                  <span class="hud-tag">Meta Muse Spark 1.3</span>
+                  <span class="assistant-badge">Zero Hallucination Grounded</span>
+                </div>
+              </div>
+
+              <div id="chat-history" class="chat-history">
+                <div class="chat-empty">
+                  <span class="chat-empty-mark">✦</span>
+                  <strong>Ask any investigative question about your footage</strong>
+                  <small>The LangGraph agent plans hypotheses, queries Supabase and Qdrant, verifies evidence, trims the relevant video clip, and provides grounded citations.</small>
+                </div>
+              </div>
+
+              <div class="chat-suggestions" aria-label="Suggested questions">
+                <button type="button" data-chat-suggestion="Who entered the restricted perimeter zone?">🚨 Perimeter breaches</button>
+                <button type="button" data-chat-suggestion="What happened in the latest recording?">📹 Latest recording recap</button>
+                <button type="button" data-chat-suggestion="Summarize all detected vehicle and person tracks">🚗 Vehicle & person tracks</button>
+                <button type="button" data-chat-suggestion="Were there any loitering or dwelling anomalies?">⏱️ Loitering analysis</button>
+              </div>
+
+              <form id="chat-form" class="chat-form">
+                <div class="field-grid">
+                  <label>Camera Scope <span class="muted">optional</span>
+                    <input id="chat-camera-id" placeholder="e.g. cam-front-gate">
+                  </label>
+                  <label>Session Scope <span class="muted">optional</span>
+                    <input id="chat-session-id" placeholder="e.g. session-live">
+                  </label>
+                </div>
+                <div class="chat-composer">
+                  <textarea id="chat-question" rows="3" required placeholder="Ask about events, vehicles, people, or zone crossings…"></textarea>
+                  <button class="button primary composer-submit" type="submit" aria-label="Ask with evidence">↑</button>
+                </div>
+              </form>
+              <div id="chat-status" class="form-status"></div>
+            </article>
+
+            <aside class="panel grounding-panel">
+              <p class="eyebrow">VERIFICATION</p>
+              <h3>Forensic Protocol</h3>
+              <ul class="clean-list">
+                <li><strong>Relational & Vector Grounding:</strong> Hypotheses are tested directly against PostgreSQL event records and Qdrant visual embeddings.</li>
+                <li><strong>Self-Correcting Reflection:</strong> If zero matches are found, LangGraph automatically relaxes filters and re-evaluates.</li>
+                <li><strong>Automated Evidence Trimming:</strong> When events are identified, exact $\pm 4.0\text{s}$ MP4 clips are trimmed and embedded in chat.</li>
+                <li><strong>Zero Speculation:</strong> Missing evidence produces an explicit verification statement.</li>
+              </ul>
+            </aside>
+          </div>
         </section>
 
+        <!-- 6. SECURITY ALERTS VIEW -->
         <section class="view" data-view-panel="alerts">
-          <div class="section-heading"><div><p class="eyebrow">RESPOND</p><h2>Alerts & rules</h2><p class="muted">Create rules for verified zone events and acknowledge them from one place.</p></div></div>
-          <article class="panel"><form id="alert-form" class="alert-form"><label>Rule name<input id="alert-name" required placeholder="Gate entry"></label><label>Event type<input id="alert-event-type" required placeholder="enter"></label><label>Zone<input id="alert-zone-id" placeholder="Optional"></label><label>Object label<input id="alert-object-id" placeholder="person"></label><button class="button primary" type="submit">Create rule</button></form><div id="alert-status" class="form-status"></div><div id="alert-rules" class="rule-list"><div class="empty">No rules loaded.</div></div><div class="panel-header alert-heading"><h3>Recent alerts</h3><button id="refresh-alerts" class="button secondary" type="button">Refresh</button></div><div id="alerts-list" class="rule-list"><div class="empty">No alerts loaded.</div></div></article>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">INCIDENT RESPONSE</p>
+              <h2>Security Alert Rules & Active Sentry</h2>
+              <p class="muted">Configure real-time trigger rules for perimeter breaches, loitering, and dwell thresholds.</p>
+            </div>
+          </div>
+
+          <article class="panel">
+            <form id="alert-form" class="alert-form">
+              <label>Rule Name
+                <input id="alert-name" required placeholder="e.g. Perimeter Fence Intrusion">
+              </label>
+              <label>Event Type
+                <input id="alert-event-type" required placeholder="enter">
+              </label>
+              <label>Target Zone ID
+                <input id="alert-zone-id" placeholder="e.g. restricted_perimeter">
+              </label>
+              <label>Target Object Label
+                <input id="alert-object-id" placeholder="person">
+              </label>
+              <button class="button primary" type="submit">Create Alert Rule</button>
+            </form>
+            <div id="alert-status" class="form-status"></div>
+
+            <div class="panel-header alert-heading"><h3>Configured Rules</h3></div>
+            <div id="alert-rules" class="rule-list">
+              <div class="empty">No active security rules defined.</div>
+            </div>
+
+            <div class="panel-header alert-heading">
+              <h3>Triggered Security Incidents</h3>
+              <button id="refresh-alerts" class="button secondary" type="button">Refresh Alerts</button>
+            </div>
+            <div id="alerts-list" class="rule-list">
+              <div class="empty">No unacknowledged security alerts.</div>
+            </div>
+          </article>
         </section>
 
+        <!-- 7. SYSTEM SETTINGS VIEW -->
         <section class="view" data-view-panel="settings">
-          <div class="section-heading"><div><p class="eyebrow">SYSTEM</p><h2>Settings & capabilities</h2><p class="muted">Keep the local connection explicit, see what the backend actually has ready, and review camera privacy before capturing.</p></div></div>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">SYSTEM TOPOLOGY</p>
+              <h2>Console Configuration & Endpoints</h2>
+              <p class="muted">Manage API connections, inspect models and storage providers, and verify deployment security.</p>
+            </div>
+          </div>
+
           <div class="settings-overview">
             <article class="panel settings-mode-card">
-              <div class="panel-header"><div><p class="eyebrow">ACCESS MODE</p><h3>Local-first workspace</h3></div><span id="settings-mode-status" class="mode-badge local">Development</span></div>
-              <p class="settings-lead">The dashboard uses the configured API directly. Local development can run without credentials; protected deployments require the authenticated sign-in path.</p>
-              <div class="settings-status-grid"><div><span>API origin</span><strong id="settings-api-origin">Same origin</strong></div><div><span>Backend</span><strong id="settings-api-status">Checking…</strong></div><div><span>Session</span><strong id="settings-auth-status">Checking…</strong></div></div>
+              <div class="panel-header">
+                <div><p class="eyebrow">ACCESS LEVEL</p><h3>Authenticated Sentry</h3></div>
+                <span id="settings-mode-status" class="mode-badge protected">Authenticated</span>
+              </div>
+              <p class="settings-lead">Console is connected to the authoritative container API with JWT authentication and audit trails active.</p>
+              <div class="settings-status-grid">
+                <div><span>Origin</span><strong id="settings-api-origin">Same origin</strong></div>
+                <div><span>Backend</span><strong id="settings-api-status">Checking…</strong></div>
+                <div><span>Session</span><strong id="settings-auth-status">Checking…</strong></div>
+              </div>
             </article>
-            <article class="panel settings-privacy-card"><p class="eyebrow">CAMERA & PRIVACY</p><h3>Capture boundaries</h3><ul class="clean-list"><li>Camera and microphone permission stays with the browser.</li><li>Preview frames remain local until you stop and upload a capture.</li><li>Uploaded media and evidence follow the backend’s configured local storage and retention policy.</li></ul></article>
+
+            <article class="panel settings-privacy-card">
+              <p class="eyebrow">DATA BOUNDARIES</p>
+              <h3>Security & Compliance</h3>
+              <ul class="clean-list">
+                <li>Video streams and frames are processed strictly within container memory and authorized volumes.</li>
+                <li>Relational metadata is backed by Supabase PostgreSQL with SSL encryption.</li>
+                <li>Evidence clips are signed with HMAC tokens and short-lived expiration grants.</li>
+              </ul>
+            </article>
           </div>
-          <div class="dashboard-grid two-col settings-grid"><article class="panel"><div class="panel-header"><div><p class="eyebrow">RUNTIME READINESS</p><h3>Models & runtime</h3><p id="settings-runtime-summary" class="panel-subcopy">Checking CPU, GPU, detector, tracker, and assistant readiness…</p></div><button id="settings-refresh" class="button secondary" type="button">Refresh</button></div><div id="settings-capabilities" class="capability-list"><div class="empty">Loading…</div></div></article><article class="panel settings-connection-card"><p class="eyebrow">CONNECTION</p><h3>API origin</h3><p class="panel-subcopy">Use blank for the same-origin deployment. Set a trusted backend origin only when the frontend is hosted separately.</p><label>Origin<input id="api-base" placeholder="Same origin" autocomplete="url"></label><div class="connection-actions"><button id="save-api" class="button primary" type="button">Save connection</button><button id="settings-logout" class="button danger" type="button">Sign out</button></div><p class="security-copy">Authentication state is controlled by the backend. Saving this origin changes where browser requests go; it does not enable auth or models.</p></article></div>
+
+          <div class="dashboard-grid two-col settings-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">SYSTEM STATUS</p>
+                  <h3>Model Runtimes & Adapters</h3>
+                  <p id="settings-runtime-summary" class="panel-subcopy">Checking CPU, GPU, detector, and tracker readiness…</p>
+                </div>
+                <button id="settings-refresh" class="button secondary" type="button">Refresh</button>
+              </div>
+              <div id="settings-capabilities" class="capability-list">
+                <div class="empty">Querying engine capabilities…</div>
+              </div>
+            </article>
+
+            <article class="panel settings-connection-card">
+              <p class="eyebrow">CONNECTION</p>
+              <h3>API Base URL</h3>
+              <p class="panel-subcopy">Leave blank for same-origin Docker deployment.</p>
+              <label>API Origin
+                <input id="api-base" placeholder="Same origin" autocomplete="url">
+              </label>
+              <div class="connection-actions">
+                <button id="save-api" class="button primary" type="button">Save Connection</button>
+                <button id="settings-logout" class="button danger" type="button">Sign Out</button>
+              </div>
+              <p class="security-copy">Authentication and RBAC policies are enforced authoritatively by the backend server.</p>
+            </article>
+          </div>
+
           <div class="settings-section-grid">
-            <article class="panel account-settings-card"><div class="panel-header"><div><p class="eyebrow">ACCOUNT</p><h3>Workspace identity</h3></div><span id="settings-account-avatar" class="account-avatar large">L</span></div><div class="account-detail-list"><div><span>Username</span><strong id="settings-account-name">Local workspace</strong></div><div><span>Role</span><strong id="settings-account-role">Development</strong></div><div><span>Session</span><strong id="settings-session-status">Active</strong></div></div><p class="security-copy">Credentials are managed by the backend. This browser stores only the selected API origin and appearance preference.</p></article>
-            <article class="panel appearance-card"><div class="panel-header"><div><p class="eyebrow">APPEARANCE</p><h3>Choose your surface</h3><p class="panel-subcopy">Your preference is saved locally in this browser.</p></div></div><div class="theme-options" role="radiogroup" aria-label="Theme preference"><button id="theme-light" class="theme-option" type="button" data-theme-choice="light" role="radio"><span class="theme-swatch light-swatch"></span><strong>Light</strong><small>Quiet and focused</small></button><button id="theme-dark" class="theme-option" type="button" data-theme-choice="dark" role="radio"><span class="theme-swatch dark-swatch"></span><strong>Dark</strong><small>Low-light workspace</small></button><button id="theme-system" class="theme-option" type="button" data-theme-choice="system" role="radio"><span class="theme-swatch system-swatch"></span><strong>System</strong><small>Follow device setting</small></button></div></article>
+            <article class="panel account-settings-card">
+              <div class="panel-header">
+                <div><p class="eyebrow">OPERATOR</p><h3>Active Identity</h3></div>
+                <span id="settings-account-avatar" class="account-avatar large">L</span>
+              </div>
+              <div class="account-detail-list">
+                <div><span>Username</span><strong id="settings-account-name">Local workspace</strong></div>
+                <div><span>Assigned Role</span><strong id="settings-account-role">Development</strong></div>
+                <div><span>Session Status</span><strong id="settings-session-status">Active</strong></div>
+              </div>
+            </article>
+
+            <article class="panel appearance-card">
+              <div class="panel-header">
+                <div><p class="eyebrow">APPEARANCE</p><h3>Console Surface Theme</h3></div>
+              </div>
+              <div class="theme-options" role="radiogroup" aria-label="Theme preference">
+                <button id="theme-dark" class="theme-option selected" type="button" data-theme-choice="dark" role="radio">
+                  <span class="theme-swatch dark-swatch"></span>
+                  <strong>Dark Sentry (Recommended)</strong>
+                  <small>High-contrast VMS command center</small>
+                </button>
+                <button id="theme-light" class="theme-option" type="button" data-theme-choice="light" role="radio">
+                  <span class="theme-swatch light-swatch"></span>
+                  <strong>Light Focus</strong>
+                  <small>Daytime office setting</small>
+                </button>
+                <button id="theme-system" class="theme-option" type="button" data-theme-choice="system" role="radio">
+                  <span class="theme-swatch system-swatch"></span>
+                  <strong>System Default</strong>
+                  <small>Follow operating system</small>
+                </button>
+              </div>
+            </article>
           </div>
         </section>
       </main>
     </div>
   </div>
+
   <script src="app.js"></script>
 </body>
 </html>

@@ -764,7 +764,11 @@
       mediaRecorder.stop();
     }
     if (closeStream && cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
-    if (closeStream) cameraStream = null;
+    if (closeStream) {
+      cameraStream = null;
+      $('camera-preview').hidden = true;
+      $('camera-placeholder').hidden = false;
+    }
     $('camera-recording-badge').hidden = true;
     $('camera-record').disabled = !cameraStream || cameraProcessing;
     $('camera-stop').disabled = !cameraStream || cameraProcessing;
@@ -1367,6 +1371,338 @@
   $('alert-form').addEventListener('submit', async (event) => { event.preventDefault(); try { await request('/api/v1/alerts/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('alert-name').value.trim(), event_type: $('alert-event-type').value.trim() || null, zone_id: $('alert-zone-id').value.trim() || null, object_label: $('alert-object-id').value.trim() || null }) }); await loadAlerts(); notify('Alert rule saved'); } catch (error) { setStatus('alert-status', error.message, true); } });
   $('save-api').addEventListener('click', saveSettingsConnection);
 
+  /* --------------------------------------------------------------------------
+     VI SENTRY — VMS ENHANCEMENTS (MATRIX WALL, ZONE DRAWER, AUX FEEDS, CLOCK)
+     -------------------------------------------------------------------------- */
+  function initVmsEnhancements() {
+    // 1. Live UTC Clock
+    const clockEl = $('vms-clock');
+    if (clockEl) {
+      const updateClock = () => {
+        const now = new Date();
+        const y = now.getUTCFullYear();
+        const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(now.getUTCDate()).padStart(2, '0');
+        const hh = String(now.getUTCHours()).padStart(2, '0');
+        const mm = String(now.getUTCMinutes()).padStart(2, '0');
+        const ss = String(now.getUTCSeconds()).padStart(2, '0');
+        clockEl.textContent = `${y}-${m}-${d} ${hh}:${mm}:${ss} UTC`;
+      };
+      updateClock();
+      setInterval(updateClock, 1000);
+    }
+
+    // 2. Matrix Switcher (1x1, 2x2, 3x3)
+    const matrixContainer = $('vms-matrix-container');
+    document.querySelectorAll('.matrix-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.matrix-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const grid = btn.dataset.grid || '2x2';
+        if (matrixContainer) {
+          matrixContainer.className = `vms-matrix-grid grid-${grid}`;
+        }
+      });
+    });
+
+    // 3. Interactive Visual Polygon Zone Drawer on #camera-zone-canvas
+    const zoneCanvas = $('camera-zone-canvas');
+    const drawBtn = $('btn-draw-zone');
+    const clearBtn = $('btn-clear-zone');
+    const snapBtn = $('btn-snap-photo');
+    let isDrawing = false;
+    let zonePoints = [];
+
+    const drawPolygonOnCanvas = () => {
+      if (!zoneCanvas) return;
+      const ctx = zoneCanvas.getContext('2d');
+      ctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
+
+      if (zonePoints.length === 0) return;
+
+      // Fill & Stroke polygon
+      ctx.beginPath();
+      ctx.moveTo(zonePoints[0][0], zonePoints[0][1]);
+      for (let i = 1; i < zonePoints.length; i++) {
+        ctx.lineTo(zonePoints[i][0], zonePoints[i][1]);
+      }
+      if (!isDrawing && zonePoints.length >= 3) {
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.18)';
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = isDrawing ? '#00e5ff' : '#10b981';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash(isDrawing ? [6, 4] : []);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw vertex handles & coordinate markers
+      zonePoints.forEach(([x, y], idx) => {
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#00e5ff';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.fillText(`P${idx + 1}(${x},${y})`, x + 7, y - 5);
+      });
+
+      // Centroid label if closed
+      if (!isDrawing && zonePoints.length >= 3) {
+        const cx = Math.round(zonePoints.reduce((acc, p) => acc + p[0], 0) / zonePoints.length);
+        const cy = Math.round(zonePoints.reduce((acc, p) => acc + p[1], 0) / zonePoints.length);
+        ctx.fillStyle = '#10b981';
+        ctx.font = 'bold 12px JetBrains Mono, monospace';
+        ctx.fillText('ZONE: CCTV-1 PERIMETER [ARMED]', Math.max(10, cx - 90), cy);
+      }
+    };
+
+    if (zoneCanvas && drawBtn) {
+      drawBtn.addEventListener('click', () => {
+        if (!isDrawing) {
+          isDrawing = true;
+          zonePoints = [];
+          drawBtn.textContent = '✓ Finish Zone';
+          drawBtn.classList.add('primary');
+          zoneCanvas.classList.add('drawing-active');
+          setStatus('camera-status', 'Click on the camera feed to place boundary corners. Click "Finish Zone" when done.');
+          drawPolygonOnCanvas();
+        } else {
+          if (zonePoints.length >= 3) {
+            isDrawing = false;
+            drawBtn.textContent = '✎ Draw Zone';
+            drawBtn.classList.remove('primary');
+            zoneCanvas.classList.remove('drawing-active');
+            const zoneJson = JSON.stringify([{ zone_id: 'cctv1-zone', polygon: zonePoints }]);
+            if ($('camera-zones')) $('camera-zones').value = zoneJson;
+            if ($('camera-form-zones')) $('camera-form-zones').value = zoneJson;
+            drawPolygonOnCanvas();
+            notify(`Custom detection zone saved (${zonePoints.length} vertices)`);
+            setStatus('camera-status', `Detection zone armed with ${zonePoints.length} coordinates.`);
+          } else {
+            notify('Click on the camera feed to add at least 3 points before finishing.', true);
+          }
+        }
+      });
+
+      zoneCanvas.addEventListener('click', (e) => {
+        if (!isDrawing) return;
+        const rect = zoneCanvas.getBoundingClientRect();
+        const scaleX = zoneCanvas.width / rect.width;
+        const scaleY = zoneCanvas.height / rect.height;
+        const x = Math.max(0, Math.min(zoneCanvas.width, Math.round((e.clientX - rect.left) * scaleX)));
+        const y = Math.max(0, Math.min(zoneCanvas.height, Math.round((e.clientY - rect.top) * scaleY)));
+
+        zonePoints.push([x, y]);
+        drawPolygonOnCanvas();
+
+        const zoneJson = JSON.stringify([{ zone_id: 'cctv1-zone', polygon: zonePoints }]);
+        if ($('camera-zones')) $('camera-zones').value = zoneJson;
+      });
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          isDrawing = false;
+          zonePoints = [];
+          drawBtn.textContent = '✎ Draw Zone';
+          drawBtn.classList.remove('primary');
+          zoneCanvas.classList.remove('drawing-active');
+          const defaultZone = '[{"zone_id":"cctv1-zone","polygon":[[0,0],[640,0],[640,480],[0,480]]}]';
+          if ($('camera-zones')) $('camera-zones').value = defaultZone;
+          drawPolygonOnCanvas();
+          notify('Detection zones reset to default full frame');
+        });
+      }
+
+      if (snapBtn) {
+        snapBtn.addEventListener('click', () => {
+          const video = $('camera-preview');
+          if (!video || video.hidden || !cameraStream) {
+            notify('Camera preview must be active to capture a snapshot', true);
+            return;
+          }
+          const snapCanvas = document.createElement('canvas');
+          snapCanvas.width = video.videoWidth || 640;
+          snapCanvas.height = video.videoHeight || 480;
+          const sCtx = snapCanvas.getContext('2d');
+          sCtx.drawImage(video, 0, 0, snapCanvas.width, snapCanvas.height);
+          if (zonePoints.length >= 3) {
+            sCtx.drawImage(zoneCanvas, 0, 0, snapCanvas.width, snapCanvas.height);
+          }
+          const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.92);
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = `sentry_snap_${Date.now()}.jpg`;
+          a.click();
+          notify('Snapshot captured and saved');
+        });
+      }
+    }
+
+    // 4. Zone Presets (Perimeter Box, Center Gate, Full Frame)
+    const presetPolygons = {
+      perimeter: [[32, 24], [608, 24], [608, 456], [32, 456]],
+      gate: [[160, 80], [480, 80], [480, 420], [160, 420]],
+      full: [[0, 0], [640, 0], [640, 480], [0, 480]],
+    };
+
+    document.querySelectorAll('[data-zone-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const presetKey = btn.dataset.zonePreset;
+        if (presetPolygons[presetKey]) {
+          zonePoints = [...presetPolygons[presetKey]];
+          isDrawing = false;
+          if (drawBtn) {
+            drawBtn.textContent = '✎ Draw Zone';
+            drawBtn.classList.remove('primary');
+          }
+          if (zoneCanvas) zoneCanvas.classList.remove('drawing-active');
+          const zoneJson = JSON.stringify([{ zone_id: `cctv1-${presetKey}`, polygon: zonePoints }]);
+          if ($('camera-zones')) $('camera-zones').value = zoneJson;
+          if ($('camera-form-zones')) $('camera-form-zones').value = zoneJson;
+          drawPolygonOnCanvas();
+          notify(`Loaded ${presetKey.toUpperCase()} preset zone`);
+        }
+      });
+    });
+
+    // 5. Quick Camera Provisioning Templates
+    document.querySelectorAll('[data-preset-cam]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.presetCam;
+        if (mode === 'rtsp') {
+          if ($('camera-form-id')) $('camera-form-id').value = 'cam-perimeter-rtsp';
+          if ($('camera-form-name')) $('camera-form-name').value = 'North Gate IP Camera';
+          if ($('camera-form-kind')) $('camera-form-kind').value = 'rtsp';
+          if ($('camera-form-path')) $('camera-form-path').value = 'rtsp://admin:pass@192.168.1.100:554/live/ch1';
+        } else if (mode === 'file') {
+          if ($('camera-form-id')) $('camera-form-id').value = 'cam-archive-file';
+          if ($('camera-form-name')) $('camera-form-name').value = 'Loading Dock Day Recording';
+          if ($('camera-form-kind')) $('camera-form-kind').value = 'file';
+          if ($('camera-form-path')) $('camera-form-path').value = 'cctv_footage_dock.mp4';
+        } else if (mode === 'device') {
+          if ($('camera-form-id')) $('camera-form-id').value = 'cam-directshow-0';
+          if ($('camera-form-name')) $('camera-form-name').value = 'USB DirectShow Sensor';
+          if ($('camera-form-kind')) $('camera-form-kind').value = 'device';
+          if ($('camera-form-path')) $('camera-form-path').value = '0';
+        }
+        if ($('camera-form-zones') && $('camera-zones')) {
+          $('camera-form-zones').value = $('camera-zones').value;
+        }
+        notify(`Applied ${mode.toUpperCase()} provisioning template`);
+      });
+    });
+
+    // 6. Simulated Auxiliary Camera Feeds (CAM-02, CAM-03, CAM-04)
+    initAuxiliaryFeeds();
+  }
+
+  function initAuxiliaryFeeds() {
+    const c2 = $('aux-canvas-ch2');
+    const c3 = $('aux-canvas-ch3');
+    const c4 = $('aux-canvas-ch4');
+    if (!c2 && !c3 && !c4) return;
+
+    let tick = 0;
+    setInterval(() => {
+      tick++;
+      // Feed CH-02 (East Perimeter)
+      if (c2) {
+        const ctx2 = c2.getContext('2d');
+        const w = c2.width, h = c2.height;
+        ctx2.fillStyle = '#060911';
+        ctx2.fillRect(0, 0, w, h);
+
+        ctx2.strokeStyle = 'rgba(0, 229, 255, 0.12)';
+        ctx2.lineWidth = 1;
+        ctx2.beginPath();
+        for (let x = 0; x < w; x += 40) {
+          ctx2.moveTo(x, 0); ctx2.lineTo(x, h);
+        }
+        for (let y = 0; y < h; y += 40) {
+          ctx2.moveTo(0, y); ctx2.lineTo(w, y);
+        }
+        ctx2.stroke();
+
+        const bx = 160 + Math.sin(tick * 0.04) * 45;
+        const by = 90 + Math.cos(tick * 0.03) * 20;
+        ctx2.strokeStyle = '#00e5ff';
+        ctx2.lineWidth = 1.8;
+        ctx2.strokeRect(bx, by, 65, 110);
+        ctx2.fillStyle = 'rgba(0, 229, 255, 0.15)';
+        ctx2.fillRect(bx, by, 65, 110);
+
+        ctx2.fillStyle = '#00e5ff';
+        ctx2.font = '9px JetBrains Mono, monospace';
+        ctx2.fillText('#TRK-8812 [PERSON 0.94]', bx, by - 5);
+        ctx2.fillStyle = '#64748b';
+        ctx2.fillText(`SPEED: ${(1.2 + Math.sin(tick * 0.1) * 0.2).toFixed(1)} m/s`, bx, by + 122);
+      }
+
+      // Feed CH-03 (Loading Dock)
+      if (c3) {
+        const ctx3 = c3.getContext('2d');
+        const w = c3.width, h = c3.height;
+        ctx3.fillStyle = '#080d17';
+        ctx3.fillRect(0, 0, w, h);
+
+        ctx3.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+        ctx3.lineWidth = 1.5;
+        ctx3.strokeRect(60, 50, 360, 220);
+        ctx3.fillStyle = 'rgba(16, 185, 129, 0.05)';
+        ctx3.fillRect(60, 50, 360, 220);
+        ctx3.fillStyle = '#10b981';
+        ctx3.font = '10px JetBrains Mono, monospace';
+        ctx3.fillText('DOCK-BAY-A [AUTHORIZED PARKING]', 66, 68);
+
+        const vx = 180 + Math.cos(tick * 0.02) * 20;
+        const vy = 120;
+        ctx3.strokeStyle = '#f59e0b';
+        ctx3.lineWidth = 1.8;
+        ctx3.strokeRect(vx, vy, 130, 85);
+        ctx3.fillStyle = '#f59e0b';
+        ctx3.font = '9px JetBrains Mono, monospace';
+        ctx3.fillText('#VEH-402 [DELIVERY VAN 0.89]', vx, vy - 6);
+      }
+
+      // Feed CH-04 (Restricted Core Vault - Night Vision)
+      if (c4) {
+        const ctx4 = c4.getContext('2d');
+        const w = c4.width, h = c4.height;
+        ctx4.fillStyle = '#020b05';
+        ctx4.fillRect(0, 0, w, h);
+
+        ctx4.fillStyle = 'rgba(34, 197, 94, 0.08)';
+        for (let i = 0; i < 70; i++) {
+          ctx4.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+        }
+
+        ctx4.strokeStyle = '#ff1744';
+        ctx4.lineWidth = 1.5;
+        ctx4.setLineDash([4, 4]);
+        ctx4.beginPath();
+        ctx4.moveTo(0, 210);
+        ctx4.lineTo(w, 210);
+        ctx4.stroke();
+        ctx4.setLineDash([]);
+
+        ctx4.fillStyle = '#ff1744';
+        ctx4.font = '10px JetBrains Mono, monospace';
+        ctx4.fillText('LASER TRIPWIRE ARMED [SECURE]', 14, 204);
+
+        ctx4.fillStyle = '#22c55e';
+        ctx4.font = '10px JetBrains Mono, monospace';
+        ctx4.fillText('SECTOR 4: ZERO MOTION DETECTED', 14, 30);
+      }
+    }, 150);
+  }
+
   (async () => {
     applyTheme(themePreference);
     $('dashboard-shell').classList.toggle('sidebar-collapsed', sidebarCollapsed);
@@ -1376,6 +1712,7 @@
     setAccountUi({ username: 'Local workspace', role: 'Development' });
     setAccessMode('unknown');
     $('camera-preview').hidden = true;
+    initVmsEnhancements();
     await checkHealth();
     await refreshIdentity();
   })();
