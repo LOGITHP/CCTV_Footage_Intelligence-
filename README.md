@@ -30,7 +30,48 @@ CPU Docker deployment and an explicit NVIDIA deployment path.
 ### Meta Model API & Qdrant Cloud Integration
 - **LLM Reasoning**: Connected via `https://api.meta.ai/v1/chat/completions` using Meta's `muse-spark-1.3` model with bearer key `LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg`.
 - **Vector DB Storage**: Connected to Qdrant Cloud cluster `https://6b0d33bb-ed40-4932-b576-d73fb0d8bce0.sa-east-1-0.aws.cloud.qdrant.io` for event and observation semantic indexing.
+- **Authoritative Database**: Connected to **Supabase PostgreSQL** (`db.iprbivrwcicogcjxzylr.supabase.co:5432`) housing 13 core relational tables across CCTV cameras, events, tracks, anomalies, outbox, and audit logs.
 - **Strict Evidence Grounding**: The LLM reasoning agent is strictly constrained to authoritative event citations—eliminating hallucination and preserving forensic timestamps.
+
+### Multi-Tier Data Storage Architecture
+
+To manage non-video derivatives, metadata, and high-frequency analytical output efficiently, the system implements a strict 4-tier storage topology:
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                        DATA STORAGE TOPOLOGY                           │
+├───────────────────┬────────────────────────────┬───────────────────────┤
+│ Data Tier         │ Storage Medium             │ Contents Stored       │
+├───────────────────┼────────────────────────────┼───────────────────────┤
+│ 1. Raw & Evidence │ Docker Volume / S3         │ Source videos (.mp4), │
+│    Media Clips    │ (/app/data/media)          │ trimmed evidence cuts │
+├───────────────────┼────────────────────────────┼───────────────────────┤
+│ 2. Relational &   │ Supabase PostgreSQL        │ Videos, Jobs, Events, │
+│    Forensic Store │ (db.*.supabase.co:5432)    │ Track Observations,   │
+│                   │                            │ Cameras, Alerts, Logs │
+├───────────────────┼────────────────────────────┼───────────────────────┤
+│ 3. Multimodal     │ Qdrant Cloud               │ SigLIP2 & BGE-M3      │
+│    Vector Store   │ (sa-east-1-0.aws.cloud...) │ 384/768d embeddings   │
+├───────────────────┼────────────────────────────┼───────────────────────┤
+│ 4. Identity &     │ PBKDF2 + JWT               │ Bearer tokens, users, │
+│    Audit Trail    │ (Supabase + Append-Only)   │ immutable audit trail │
+└───────────────────┴────────────────────────────┴───────────────────────┘
+```
+
+#### Supabase Database Setup & Schema Migrations
+The PostgreSQL schema is structured under `backend/migrations/`:
+1. `001_initial.sql`: Core tables (`videos`, `jobs`, `events`, `track_observations`, `alert_rules`, `alerts`, `chat_messages`, `outbox_messages`, `security_users`, `audit_logs`).
+2. `002_camera_monitoring.sql`: Multi-camera topology, worker health metrics, scoped observations, and anomaly records.
+
+To apply all migrations directly to your Supabase PostgreSQL cluster:
+```bash
+python scripts/migrate_database.py
+```
+
+To run end-to-end integration tests verifying read/write/cascades on Supabase:
+```bash
+python scripts/test_supabase_integration.py
+```
 
 ## 1. Repository layout
 
@@ -425,20 +466,25 @@ docker compose --env-file deployment/.env --profile data \
 For a production data deployment set at minimum:
 
 ```env
-DATABASE_URL=postgresql+psycopg://video_intelligence:<password>@postgres:5432/video_intelligence
+# Supabase PostgreSQL Database
+DATABASE_URL=postgresql+psycopg://postgres:<PASSWORD>@db.<PROJECT_REF>.supabase.co:5432/postgres?sslmode=require
+
+# Qdrant Cloud Cluster
+QDRANT_URL=https://6b0d33bb-ed40-4932-b576-d73fb0d8bce0.sa-east-1-0.aws.cloud.qdrant.io
+QDRANT_API_KEY=<your-qdrant-api-key>
+QDRANT_COLLECTION=video-events
+
+# Optional Redis / Celery Background Processing
 REDIS_URL=redis://redis:6379/0
 CELERY_BROKER_URL=redis://redis:6379/0
-OBJECT_STORAGE_BACKEND=s3
-S3_ENDPOINT_URL=http://minio:9000
-S3_ACCESS_KEY_ID=<secret-manager-value>
-S3_SECRET_ACCESS_KEY=<secret-manager-value>
-QDRANT_URL=http://qdrant:6333
+OBJECT_STORAGE_BACKEND=local
+MEDIA_ROOT=data/media
 ```
 
 The adapters are optional at runtime so offline tests do not need these
-services. Run migrations from `backend/migrations/001_initial.sql` and
-`backend/migrations/002_camera_monitoring.sql` before pointing a production API
-at PostgreSQL. The data profile includes a Celery worker and beat scheduler;
+services. Run migrations with `python scripts/migrate_database.py` (which runs
+`backend/migrations/001_initial.sql` and `backend/migrations/002_camera_monitoring.sql`)
+before pointing a production API at PostgreSQL. The data profile includes a Celery worker and beat scheduler;
 the worker handles queued jobs and beat reconciles the durable notification
 outbox.
 

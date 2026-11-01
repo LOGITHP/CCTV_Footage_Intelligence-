@@ -47,6 +47,10 @@ class PostgresStore:
     ) -> None:
         if not database_url:
             raise ValueError("database_url is required for PostgresStore")
+        if database_url.startswith("postgres://"):
+            database_url = "postgresql+psycopg://" + database_url[len("postgres://"):]
+        elif database_url.startswith("postgresql://"):
+            database_url = "postgresql+psycopg://" + database_url[len("postgresql://"):]
         if engine is None:
             engine_options: dict[str, Any] = {"future": True, "pool_pre_ping": True}
             if database_url.startswith("sqlite") and ":memory:" in database_url:

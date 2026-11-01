@@ -9,15 +9,15 @@ CREATE TABLE IF NOT EXISTS videos (
   content_type VARCHAR(255),
   size_bytes BIGINT,
   checksum_sha256 VARCHAR(64),
-  created_at TIMESTAMPTZ NOT NULL
+  created_at VARCHAR(64) NOT NULL
 );
 CREATE TABLE IF NOT EXISTS jobs (
   job_id VARCHAR(64) PRIMARY KEY,
   video_id VARCHAR(64) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
   status VARCHAR(32) NOT NULL,
   error TEXT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ
+  created_at VARCHAR(64) NOT NULL,
+  updated_at VARCHAR(64)
 );
 CREATE TABLE IF NOT EXISTS events (
   event_id VARCHAR(64) PRIMARY KEY,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS alert_rules (
   object_label VARCHAR(255),
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   cooldown_seconds INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at VARCHAR(64) NOT NULL
 );
 CREATE TABLE IF NOT EXISTS alerts (
   alert_id VARCHAR(128) PRIMARY KEY,
@@ -61,8 +61,8 @@ CREATE TABLE IF NOT EXISTS alerts (
   event_id VARCHAR(64) NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
   status VARCHAR(32) NOT NULL DEFAULT 'open',
   message TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  acknowledged_at TIMESTAMPTZ,
+  created_at VARCHAR(64) NOT NULL,
+  acknowledged_at VARCHAR(64),
   UNIQUE(rule_id, event_id)
 );
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   role VARCHAR(32) NOT NULL,
   content TEXT NOT NULL,
   citations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS outbox_messages (
@@ -102,11 +102,11 @@ CREATE TABLE IF NOT EXISTS security_users (
   password_hash TEXT NOT NULL,
   role VARCHAR(16) NOT NULL CHECK (role IN ('admin', 'operator', 'reviewer')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at VARCHAR(64) NOT NULL
 );
 CREATE TABLE IF NOT EXISTS audit_logs (
   audit_id VARCHAR(64) PRIMARY KEY,
-  occurred_at TIMESTAMPTZ NOT NULL,
+  occurred_at VARCHAR(64) NOT NULL,
   action VARCHAR(255) NOT NULL,
   outcome VARCHAR(64) NOT NULL,
   actor_id VARCHAR(64),
