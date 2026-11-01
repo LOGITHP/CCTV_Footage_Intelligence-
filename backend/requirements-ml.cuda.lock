@@ -1,0 +1,4 @@
+# CUDA 12.4 PyTorch wheels from the official PyTorch index.
+# Use only with an NVIDIA Container Toolkit host and the NVIDIA Compose override.
+torch==2.5.1
+torchvision==0.20.1

@@ -1,0 +1,14 @@
+.git
+.gitignore
+.dockerignore
+data
+backend/data
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.venv
+.venv-ml
+*.pyc
+*.pyo
+*.log
+models

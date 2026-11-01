@@ -1,0 +1,12 @@
+# Optional model runtime and reproducible public-checkpoint downloader.
+# Install this after the target-specific PyTorch lockfile:
+#   requirements-ml.cpu.lock or requirements-ml.cuda.lock
+ultralytics==8.3.55
+supervision==0.25.1
+sentence-transformers==3.3.1
+huggingface-hub==0.30.2
+transformers==4.51.3
+Pillow==11.1.0
+# Keep the API's FFmpeg/privacy path on the same headless OpenCV build as the
+# base runtime; ultralytics declares opencv-python as an unconstrained extra.
+opencv-python-headless==4.10.0.84

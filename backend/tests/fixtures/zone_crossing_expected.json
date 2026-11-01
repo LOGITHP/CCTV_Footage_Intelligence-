@@ -1,0 +1,18 @@
+{
+  "name": "bright-blob-zone-crossing",
+  "frame_size": [100, 80],
+  "fps": 10,
+  "frames": [
+    {"frame_index": 0, "object_center": [80, 27], "inside_zone": false},
+    {"frame_index": 1, "object_center": [40, 27], "inside_zone": true},
+    {"frame_index": 2, "object_center": [80, 27], "inside_zone": false}
+  ],
+  "zone": {
+    "zone_id": "gate",
+    "polygon": [[0, 0], [50, 0], [50, 80], [0, 80]]
+  },
+  "expected_events": [
+    {"event_type": "enter", "zone_id": "gate", "object_id": "track-1", "timestamp_seconds": 0.1},
+    {"event_type": "exit", "zone_id": "gate", "object_id": "track-1", "timestamp_seconds": 0.2}
+  ]
+}
