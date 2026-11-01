@@ -1,17 +1,7 @@
 # Multi-Stream Video Intelligence
 
-An on-premises, evidence-oriented video processing platform. The repository is
-organized into a browser frontend and a Python backend, with a reproducible
-CPU Docker deployment and an explicit NVIDIA deployment path.
+An on-premises, evidence-oriented video processing platform. 
 
-> **Honesty boundary:** the default implementation is a verified CPU baseline.
-> It processes recorded video with a deterministic bright-blob detector and
-> centroid tracker. Optional YOLO, ByteTrack, SigLIP2, BGE-M3, and Qwen paths
-> require explicit provisioning, local checkpoints, manifest dimensions, and
-> measured validation on target CCTV footage. The application never downloads
-> weights implicitly; `scripts/download_models.py` is the explicit provisioning
-> step. The deployment image embeds the provisioned `models/` tree at build
-> time instead of depending on a runtime model bind mount.
 
 ## Meta AI Hackathon Architecture Stack
 
