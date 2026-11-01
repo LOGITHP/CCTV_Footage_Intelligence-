@@ -15,3 +15,4 @@ model_metadata:
     image_b64: ""
     confidence: 0.35
     min_area: 25.0
+

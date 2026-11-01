@@ -36,7 +36,7 @@ class ModelSettings:
     qwen_model: str = "Qwen/Qwen3-8B"
     meta_api_key: str = "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg"
     meta_api_url: str = "https://api.meta.ai/v1"
-    meta_model: str = "muse-spark-1.3"
+    meta_model: str = "meta-models/muse-spark-open-1026"
     baseten_api_key: str = "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL"
     baseten_sam_endpoint: str = ""
     baseten_siglip_endpoint: str = ""
@@ -90,7 +90,7 @@ def settings_from_env() -> ModelSettings:
         qwen_model=os.getenv("QWEN_MODEL", "Qwen/Qwen3-8B").strip(),
         meta_api_key=os.getenv("META_API_KEY", os.getenv("MUSE_API_KEY", "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg")).strip(),
         meta_api_url=os.getenv("META_API_URL", "https://api.meta.ai/v1").strip(),
-        meta_model=os.getenv("META_MODEL", os.getenv("MUSE_MODEL", "muse-spark-1.3")).strip(),
+        meta_model=os.getenv("META_MODEL", os.getenv("MUSE_MODEL", "meta-models/muse-spark-open-1026")).strip(),
         baseten_api_key=os.getenv("BASETEN_API_KEY", "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL").strip(),
         baseten_sam_endpoint=os.getenv("BASETEN_SAM_ENDPOINT", "").strip(),
         baseten_siglip_endpoint=os.getenv("BASETEN_SIGLIP_ENDPOINT", "").strip(),
@@ -466,7 +466,7 @@ class MetaMuseGroundedResponder:
             or os.getenv("META_MODEL")
             or os.getenv("MUSE_MODEL")
             or self.settings.meta_model
-            or "muse-spark-1.3"
+            or "meta-models/muse-spark-open-1026"
         ).strip()
         self.timeout = timeout
 

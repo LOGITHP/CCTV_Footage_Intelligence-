@@ -119,3 +119,4 @@ def test_baseten_offline_fallback():
     detections = detector.detect(dummy_frame)
     assert len(detections) >= 1
     assert detections[0].area > 0
+

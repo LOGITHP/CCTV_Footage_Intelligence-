@@ -116,3 +116,4 @@ class Model:
             })
 
         return {"detections": detections, "count": len(detections)}
+

@@ -10,3 +10,4 @@ resources:
 model_metadata:
   example_model_input:
     text: "person in dark jacket crossing gate"
+

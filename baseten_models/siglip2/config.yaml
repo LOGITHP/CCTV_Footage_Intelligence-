@@ -12,3 +12,4 @@ resources:
 model_metadata:
   example_model_input:
     image_b64: ""
+

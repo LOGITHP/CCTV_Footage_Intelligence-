@@ -33,3 +33,4 @@ class Model:
             "embedding": [float(x) for x in embedding],
             "dimension": len(embedding),
         }
+

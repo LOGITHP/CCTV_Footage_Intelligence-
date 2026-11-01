@@ -49,3 +49,4 @@ class Model:
             "embedding": embedding,
             "dimension": len(embedding),
         }
+
