@@ -31,8 +31,8 @@ services:
       - MODEL_PROFILE=sam
       - TRACKER_PROFILE=sam
       - CHAT_MODEL_MODE=meta
-      - META_API_KEY=LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg
-      - META_API_URL=https://api.meta.ai/v1
+      - META_API_KEY=b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL
+      - META_API_URL=https://inference.baseten.co/v1
       - META_MODEL=meta-models/muse-spark-open-1026
 
       # --- Qdrant Cloud Vector Storage ---

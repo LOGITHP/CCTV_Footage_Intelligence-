@@ -453,13 +453,14 @@ class MetaMuseGroundedResponder:
             or os.getenv("META_API_KEY")
             or os.getenv("MUSE_API_KEY")
             or self.settings.meta_api_key
-            or "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg"
+            or self.settings.baseten_api_key
+            or "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL"
         ).strip()
         self.api_url = (
             api_url
             or os.getenv("META_API_URL")
             or self.settings.meta_api_url
-            or "https://api.meta.ai/v1"
+            or "https://inference.baseten.co/v1"
         ).rstrip("/")
         self.model = (
             model
@@ -472,7 +473,7 @@ class MetaMuseGroundedResponder:
 
     def respond(self, question: str, citations: list[dict[str, Any]]) -> str:
         system = (
-            "You are Meta Muse Spark 1.3, a grounded video intelligence assistant. "
+            "You are Meta Muse Spark Open, a grounded video intelligence assistant for CCTV and camera surveillance. "
             "Answer the question using ONLY the verified JSON citations provided below. "
             "Never invent, assume, or alter any timestamp, camera ID, object ID, event type, zone, or clip reference. "
             "If the citations do not substantiate an answer, explicitly state that evidence is insufficient. "
@@ -487,7 +488,7 @@ class MetaMuseGroundedResponder:
             "model": self.model,
             "messages": messages,
             "temperature": 0.0,
-            "max_tokens": 256,
+            "max_tokens": 1024,
         }
         endpoint = f"{self.api_url}/chat/completions"
         try:
@@ -505,10 +506,13 @@ class MetaMuseGroundedResponder:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             choice = data["choices"][0]
-            answer = choice["message"]["content"].strip()
+            msg = choice.get("message", {})
+            answer = (msg.get("content") or "").strip()
+            if not answer and msg.get("reasoning_content"):
+                answer = msg.get("reasoning_content").strip()
             if "</think>" in answer:
                 answer = answer.split("</think>", 1)[1].strip()
-            return answer
+            return answer or "Verified citations found, but reasoning generated no textual conclusion."
         except Exception as exc:
             # Deterministic fallback when remote API call times out or network is offline
             if citations:

@@ -25,10 +25,10 @@ CPU Docker deployment and an explicit NVIDIA deployment path.
 | **Visual embeddings** | SigLIP2 | Frame-level visual semantic feature representation |
 | **Text embeddings** | BGE-M3 | Query and event text multi-lingual embedding |
 | **Vector search** | Qdrant Cloud | Cloud-managed vector cluster (`sa-east-1-0.aws.cloud.qdrant.io`) |
-| **LLM reasoning** | Meta Muse Spark 1.3 | Grounded multimodal reasoning via official Meta Model API |
+| **LLM reasoning** | Meta Muse Spark Open | Grounded multimodal reasoning via Baseten Inference API (`meta-models/muse-spark-open-1026`) |
 
-### Meta Model API, Baseten Hosting & Qdrant Cloud Integration
-- **LLM Reasoning**: Connected via `https://api.meta.ai/v1/chat/completions` using Meta's `muse-spark-1.3` model with bearer key `LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg`.
+### Meta AI, Baseten Hosting & Qdrant Cloud Integration
+- **LLM Reasoning**: Connected via `https://inference.baseten.co/v1/chat/completions` using Meta's official hackathon model `meta-models/muse-spark-open-1026` with Baseten bearer key `b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL` (allocated with $100 credits & 2M TPM).
 - **Model Hosting & Inference on Baseten**:
   - **Meta SAM 3.1** (Detection & Segmentation): Packaged as Truss in `baseten_models/sam3_1` -> `BASETEN_SAM_ENDPOINT`.
   - **SigLIP2** (Visual Frame Embeddings): Packaged as Truss in `baseten_models/siglip2` -> `BASETEN_SIGLIP_ENDPOINT`.
