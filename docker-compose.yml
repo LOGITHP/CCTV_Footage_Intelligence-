@@ -69,6 +69,7 @@ services:
       # Persistent Docker volume storing local video recordings, evidence clips, and caches
       - video_data:/app/data
       - model_cache:/root/.cache/huggingface
+      - ./backend/src:/app/backend/src
       - ./frontend:/app/frontend
 
     healthcheck:
