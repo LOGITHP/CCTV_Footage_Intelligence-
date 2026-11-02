@@ -271,17 +271,35 @@ def detect_face_regions(frame: Any) -> tuple[RedactionRegion, ...]:
     policy masks the frame rather than publishing an unredacted derivative.
     """
 
+    if frame is None or isinstance(frame, (int, float, str)) or not hasattr(frame, "shape"):
+        return ()
+
     try:
         import cv2
     except ImportError:
         return ()
-    cascade_path = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
-    classifier = cv2.CascadeClassifier(str(cascade_path))
-    if classifier.empty():
+
+    try:
+        cascade_path = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
+        if not cascade_path.is_file():
+            return ()
+        classifier = cv2.CascadeClassifier(str(cascade_path))
+        if classifier.empty():
+            return ()
+        if len(frame.shape) == 2:
+            gray = frame
+        elif len(frame.shape) == 3 and frame.shape[2] == 1:
+            gray = frame.squeeze(axis=2)
+        elif len(frame.shape) == 3 and frame.shape[2] == 4:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGRA2GRAY)
+        elif len(frame.shape) == 3 and frame.shape[2] == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            return ()
+        faces = classifier.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(24, 24))
+        return tuple(RedactionRegion(int(x), int(y), int(width), int(height), "face") for x, y, width, height in faces)
+    except Exception:
         return ()
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = classifier.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(24, 24))
-    return tuple(RedactionRegion(int(x), int(y), int(width), int(height), "face") for x, y, width, height in faces)
 
 
 def redact_public_derivative(
@@ -358,7 +376,12 @@ def redact_video(
             if not ok:
                 break
             if region_provider is not None:
-                regions = region_provider(frame_index)
+                try:
+                    regions = region_provider(frame)
+                except TypeError:
+                    regions = region_provider(frame_index)
+                except Exception:
+                    regions = None
             elif regions_by_frame is not None:
                 regions = regions_by_frame.get(frame_index)
             else:

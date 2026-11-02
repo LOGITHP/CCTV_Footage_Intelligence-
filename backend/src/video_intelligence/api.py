@@ -964,19 +964,23 @@ def process_media(video_id: str, request: MediaProcessRequest, principal: UserPr
         store.add_observations(video_id, result.observations)
         store.add_events(video_id, payload)
         for event in payload:
-            clip = create_clip(
-                source_path,
-                media_root / "evidence" / f"{event['event_id']}.mp4",
-                timestamp_seconds=event["timestamp_seconds"],
-                padding=request.clip_padding,
-            )
-            evidence_reference = str(clip)
-            if storage_settings.object_storage.backend == "s3":
-                evidence_reference = f"videos/{video_id}/evidence/{event['event_id']}.mp4"
-                build_object_storage(storage_settings.object_storage).put_file(clip, evidence_reference, content_type="video/mp4")
-            store.update_evidence(event["event_id"], evidence_reference)
-            event["evidence_status"] = "ready"
-            event["evidence_path"] = evidence_reference
+            try:
+                clip = create_clip(
+                    source_path,
+                    media_root / "evidence" / f"{event['event_id']}.mp4",
+                    timestamp_seconds=event["timestamp_seconds"],
+                    padding=request.clip_padding,
+                )
+                evidence_reference = str(clip)
+                if storage_settings.object_storage.backend == "s3":
+                    evidence_reference = f"videos/{video_id}/evidence/{event['event_id']}.mp4"
+                    build_object_storage(storage_settings.object_storage).put_file(clip, evidence_reference, content_type="video/mp4")
+                store.update_evidence(event["event_id"], evidence_reference)
+                event["evidence_status"] = "ready"
+                event["evidence_path"] = evidence_reference
+            except Exception as clip_exc:
+                logger.warning("Could not generate evidence clip for event %s: %s", event.get("event_id"), clip_exc)
+                event["evidence_status"] = "failed"
         alerts = store.create_alerts_for_events(payload, created_at=now())
         enqueue_outbox("video.processed", {"video_id": video_id, "job_id": job_id, "event_count": len(payload)}, aggregate_type="video", aggregate_id=video_id, dedupe_key=f"video.processed:{job_id}")
         enqueue_alert_notifications(alerts, video_id=video_id)

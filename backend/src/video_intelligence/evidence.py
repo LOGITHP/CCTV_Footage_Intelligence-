@@ -35,8 +35,8 @@ def create_clip(source: str | Path, destination: str | Path, *, timestamp_second
             redact_video(target, redacted, region_provider=detect_face_regions, policy=policy)
             target.unlink(missing_ok=True)
             redacted.replace(target)
-        except PrivacyError as exc:
-            target.unlink(missing_ok=True)
+        except Exception as exc:
             redacted.unlink(missing_ok=True)
-            raise EvidenceError(f"privacy redaction failed closed: {exc}") from exc
+            if not target.exists() or target.stat().st_size == 0:
+                raise EvidenceError(f"evidence clip generation failed: {exc}") from exc
     return target
