@@ -593,12 +593,18 @@
                       <option value="gpu">GPU CUDA Acceleration</option>
                     </select>
                   </label>
-                  <label>Frame Stride (Every Nth)
-                    <input id="every" type="number" min="1" value="1">
+                  <label>Frame Stride (Every Nth Frame)
+                    <input id="every" type="number" min="1" max="300" value="15">
+                    <small class="field-hint" style="color:var(--text-muted);display:block;margin-top:4px;font-size:11px;">
+                      ⚡ <strong>Recommended: 15–30 (1–2 FPS)</strong>. Evaluates ~60 frames on a 1-min video to keep Baseten/SAM cloud costs low (~$0.05). Stride 1 evaluates all ~1,800 frames (~$1.50).
+                    </small>
                   </label>
                 </div>
                 <label>Detection Zones JSON
-                  <textarea id="zones" rows="3">[{"zone_id":"zone-1","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
+                  <textarea id="zones" rows="3" placeholder='[{"zone_id":"zone-1","polygon":[[0,0],[640,0],[640,480],[0,480]]}]'>[{"zone_id":"zone-1","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
+                  <small class="field-hint" style="color:var(--text-muted);display:block;margin-top:4px;font-size:11px;">
+                    Format: <code>[{"zone_id":"zone-1", "polygon":[[x1,y1],[x2,y2],[x3,y3],[x4,y4]]}]</code>
+                  </small>
                 </label>
                 <button class="button primary" type="submit">Start Processing Pipeline</button>
               </form>

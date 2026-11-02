@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -37,9 +37,28 @@ class ObservationFrame(BaseModel):
 
 
 class ZoneInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
     zone_id: str = Field(min_length=1)
     polygon: list[tuple[float, float]] = Field(min_length=3)
+    label: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_zone_dict(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "polygon" not in data:
+            for key, val in list(data.items()):
+                if key in ("zone_id", "label"):
+                    continue
+                if isinstance(val, (list, tuple)) and len(val) >= 3:
+                    if all(isinstance(pt, (list, tuple)) and len(pt) >= 2 for pt in val):
+                        data["polygon"] = val
+                        if not data.get("label") and key not in ("coords", "coordinates", "points", "boundary"):
+                            data["label"] = str(key)
+                        break
+        return data
 
 
 class CameraSourceRequest(BaseModel):

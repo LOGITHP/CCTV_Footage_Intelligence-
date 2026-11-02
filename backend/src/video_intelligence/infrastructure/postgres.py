@@ -52,11 +52,19 @@ class PostgresStore:
         elif database_url.startswith("postgresql://"):
             database_url = "postgresql+psycopg://" + database_url[len("postgresql://"):]
         if engine is None:
-            engine_options: dict[str, Any] = {"future": True, "pool_pre_ping": True}
+            engine_options: dict[str, Any] = {"future": True, "pool_pre_ping": True, "pool_recycle": 120}
             if database_url.startswith("sqlite") and ":memory:" in database_url:
                 engine_options.update({"connect_args": {"check_same_thread": False}, "poolclass": StaticPool})
             elif database_url.startswith("postgresql"):
-                engine_options.update({"connect_args": {"connect_timeout": 10}})
+                engine_options.update({
+                    "connect_args": {
+                        "connect_timeout": 10,
+                        "keepalives": 1,
+                        "keepalives_idle": 30,
+                        "keepalives_interval": 10,
+                        "keepalives_count": 5,
+                    }
+                })
             engine = create_engine(database_url, **engine_options)
         self.engine = engine
         self._sessions = sessionmaker(bind=engine, expire_on_commit=False, future=True)

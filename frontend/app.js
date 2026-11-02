@@ -620,7 +620,17 @@
       throw new Error(`${label} must be valid JSON, for example [{"zone_id":"gate","polygon":[[0,0],[640,0],[640,480]]}].`);
     }
     if (!Array.isArray(parsed)) throw new Error(`${label} must be a JSON array of zone objects.`);
-    return parsed;
+    // Auto-normalize any custom key holding coordinate points (e.g., {"Car parking": [[...]]})
+    return parsed.map((item, idx) => {
+      if (item && typeof item === 'object' && !item.polygon) {
+        for (const [k, v] of Object.entries(item)) {
+          if (k !== 'zone_id' && Array.isArray(v) && v.length >= 3) {
+            return { zone_id: item.zone_id || `zone-${idx + 1}`, polygon: v, label: k };
+          }
+        }
+      }
+      return item;
+    });
   }
 
   function cameraZones() {
@@ -704,6 +714,12 @@
       showResult('process-result', message, true);
       notify(message, true);
       return;
+    }
+    const modelProf = $('model-profile')?.value || 'baseline';
+    const everyVal = Number($('every')?.value) || 15;
+    if (modelProf === 'sam' && everyVal < 5) {
+      const ok = confirm(`⚠️ Cost Warning:\n\nFrame Stride is set to ${everyVal}. For a 1-minute video at 30 FPS, this will make ~${Math.round(1800 / everyVal)} cloud API calls to Meta SAM on Baseten, which could consume ~$1.50+ and take several minutes.\n\nRecommended: Stride 15 (2 FPS) or 30 (1 FPS) analyzes ~60-120 frames at ~$0.05.\n\nDo you want to proceed with Stride ${everyVal}?`);
+      if (!ok) return;
     }
     if (submit.disabled) return;
     const release = setButtonBusy(submit, 'Processing…');
