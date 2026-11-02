@@ -296,36 +296,65 @@ def enqueue_outbox(
 ) -> dict:
     """Persist a durable side effect without contacting external services."""
 
-    database = _outbox_database()
-    with _outbox_lock:
-        outbox = _outbox_stores.get(database)
-        if outbox is None:
-            outbox = OutboxStore(database, metrics=metrics)
-            _outbox_stores[database] = outbox
-    return outbox.enqueue(
-        topic,
-        payload,
-        aggregate_type=aggregate_type,
-        aggregate_id=aggregate_id,
-        dedupe_key=dedupe_key,
-    )
+    try:
+        database = _outbox_database()
+        with _outbox_lock:
+            outbox = _outbox_stores.get(database)
+            if outbox is None:
+                outbox = OutboxStore(database, metrics=metrics)
+                _outbox_stores[database] = outbox
+        return outbox.enqueue(
+            topic,
+            payload,
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            dedupe_key=dedupe_key,
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger("video_intelligence").warning(
+            "Primary outbox enqueue failed for topic %s (%s); persisting to local fallback outbox",
+            topic,
+            exc,
+        )
+        try:
+            fallback_db = "data/outbox.sqlite3"
+            with _outbox_lock:
+                outbox = _outbox_stores.get(fallback_db)
+                if outbox is None:
+                    outbox = OutboxStore(fallback_db, metrics=metrics)
+                    _outbox_stores[fallback_db] = outbox
+            return outbox.enqueue(
+                topic,
+                payload,
+                aggregate_type=aggregate_type,
+                aggregate_id=aggregate_id,
+                dedupe_key=dedupe_key,
+            )
+        except Exception as inner_exc:
+            return {"topic": topic, "status": "failed", "error": str(exc)}
 
 
 def enqueue_alert_notifications(alerts: list[dict], *, video_id: str) -> int:
     """Persist configured alert deliveries; the reconciler performs I/O later."""
 
-    channels = configured_notification_channels(load_settings().notifications)
-    queued = 0
-    for channel, notification in notification_payloads(alerts, video_id=video_id, channels=channels):
-        enqueue_outbox(
-            "notification.send",
-            notification,
-            aggregate_type="alert",
-            aggregate_id=str(notification["payload"]["alert_id"]),
-            dedupe_key=f"notification:{notification['notification_id']}",
-        )
-        queued += 1
-    return queued
+    try:
+        channels = configured_notification_channels(load_settings().notifications)
+        queued = 0
+        for channel, notification in notification_payloads(alerts, video_id=video_id, channels=channels):
+            enqueue_outbox(
+                "notification.send",
+                notification,
+                aggregate_type="alert",
+                aggregate_id=str(notification["payload"]["alert_id"]),
+                dedupe_key=f"notification:{notification['notification_id']}",
+            )
+            queued += 1
+        return queued
+    except Exception as exc:
+        import logging
+        logging.getLogger("video_intelligence").warning("enqueue_alert_notifications encountered non-fatal error: %s", exc)
+        return 0
 
 
 def build_semantic_service(modality: str) -> SemanticSearchService:
@@ -901,8 +930,17 @@ def process_video(video_id: str, request: ProcessRequest, principal: UserPrincip
         enqueue_alert_notifications(alerts, video_id=video_id)
         store.update_job(job_id, "completed")
         return {"job_id": job_id, "status": "completed", "event_count": len(payload), "events": [public_event(event) for event in payload], "alerts": alerts}
-    except (ValueError, TypeError) as error:
-        store.update_job(job_id, "failed", str(error))
+    except HTTPException as error:
+        try:
+            store.update_job(job_id, "failed", str(error.detail))
+        except Exception:
+            pass
+        raise
+    except Exception as error:
+        try:
+            store.update_job(job_id, "failed", str(error))
+        except Exception:
+            pass
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
@@ -987,10 +1025,16 @@ def process_media(video_id: str, request: MediaProcessRequest, principal: UserPr
         store.update_job(job_id, "completed")
         return {"job_id": job_id, "status": "completed", "frame_count": len(result.observations), "events": [public_event(event) for event in payload], "alerts": alerts}
     except HTTPException as error:
-        store.update_job(job_id, "failed", str(error.detail))
+        try:
+            store.update_job(job_id, "failed", str(error.detail))
+        except Exception:
+            pass
         raise
-    except (PipelineError, ValueError, TypeError, OSError, RuntimeError) as error:
-        store.update_job(job_id, "failed", str(error))
+    except Exception as error:
+        try:
+            store.update_job(job_id, "failed", str(error))
+        except Exception:
+            pass
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 

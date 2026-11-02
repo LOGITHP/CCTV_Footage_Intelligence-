@@ -73,8 +73,35 @@ class PostgresStore:
 
     @contextmanager
     def _session(self) -> Iterator[Session]:
-        with self._sessions() as session:
-            yield session
+        import time
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                with self._sessions() as session:
+                    yield session
+                break
+            except Exception as error:
+                err_str = str(error).lower()
+                is_transient = any(
+                    term in err_str
+                    for term in (
+                        "temporary failure in name resolution",
+                        "eof detected",
+                        "connection closed",
+                        "connection reset",
+                        "could not translate host name",
+                        "broken pipe",
+                        "server closed the connection",
+                    )
+                )
+                if is_transient and attempt < max_retries:
+                    time.sleep(0.5 * (attempt + 1))
+                    try:
+                        self.engine.dispose()
+                    except Exception:
+                        pass
+                    continue
+                raise
 
     @staticmethod
     def _video_dict(record: VideoRecord) -> dict[str, Any]:
