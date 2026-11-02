@@ -259,6 +259,7 @@
                 <div class="vms-feed-meta">
                   <span class="vms-feed-badge">CH-01</span>
                   <strong>CAM 01 · Primary Sentry</strong>
+                  <span id="camera-feed-mode" class="vms-feed-badge mode-badge">LIVE</span>
                   <small id="camera-resolution">Ready to connect</small>
                 </div>
                 <div class="vms-feed-stats">
@@ -268,8 +269,10 @@
               </div>
 
               <div class="vms-frame-viewport">
-                <!-- Video Element -->
+                <!-- Video Element (Live Stream) -->
                 <video id="camera-preview" autoplay muted playsinline></video>
+                <!-- Video Element (Recorded Footage Replay Player) -->
+                <video id="camera-playback" class="camera-playback-video" controls playsinline hidden></video>
                 <!-- Interactive Drawing & Bounding Box Canvas -->
                 <canvas id="camera-zone-canvas" class="camera-zone-canvas" width="640" height="480"></canvas>
 
@@ -284,7 +287,7 @@
                 <div class="vms-hud-reticle tr"></div>
                 <div class="vms-hud-reticle bl"></div>
                 <div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-01 // LIVE HUD 1080p60 H.264</div>
+                <div class="vms-hud-watermark" id="camera-hud-label">CAM-01 // LIVE HUD 1080p60 H.264</div>
               </div>
 
               <div class="vms-feed-toolbar">
@@ -294,6 +297,8 @@
                   <button id="camera-stop" class="button danger" type="button" disabled><span>■</span> Stop</button>
                 </div>
                 <div class="vms-feed-actions">
+                  <button id="btn-replay-capture" class="button secondary small" type="button" title="Watch Last Recorded Clip" hidden>▶ Replay Capture</button>
+                  <button id="btn-live-switch" class="button ghost small" type="button" title="Switch Back to Live Feed" hidden>◉ Live View</button>
                   <button id="btn-draw-zone" class="button secondary small" type="button" title="Interactive Polygon Zone Drawer">✎ Draw Zone</button>
                   <button id="btn-clear-zone" class="button ghost small" type="button" title="Reset Drawn Zones">↺ Reset</button>
                   <button id="btn-snap-photo" class="button ghost small" type="button" title="Snapshot Frame">📷 Snap</button>
@@ -517,7 +522,32 @@
 
           <div class="dashboard-grid two-col">
             <article class="panel">
-              <div class="panel-header"><div><p class="eyebrow">INGESTION</p><h3>Upload Surveillance Footage</h3></div></div>
+              <div class="panel-header"><div><p class="eyebrow">INGESTION & SURVEILLANCE ARCHIVE</p><h3>Pre-Recorded & CCTV Footage</h3></div></div>
+              
+              <!-- Quick Pre-Recorded Footage Archive Selector -->
+              <div class="archive-selector-bar">
+                <label for="pre-recorded-video-select" class="archive-label">📂 Choose Stored Footage:</label>
+                <div class="archive-select-row">
+                  <select id="pre-recorded-video-select">
+                    <option value="">-- Select from Stored Surveillance Videos --</option>
+                  </select>
+                  <button id="btn-refresh-archive" class="button secondary small" type="button" title="Refresh Stored Videos">↻ Refresh</button>
+                </div>
+              </div>
+
+              <!-- Interactive Video Player for Pre-Recorded / Uploaded Footage -->
+              <div id="workbench-player-card" class="workbench-player-card" hidden>
+                <div class="player-header">
+                  <span class="player-title" id="workbench-player-title">CCTV Footage Stream</span>
+                  <span class="vms-feed-badge" id="workbench-player-badge">PREVIEW</span>
+                </div>
+                <video id="workbench-video-player" class="workbench-video-player" controls playsinline preload="metadata"></video>
+                <div class="player-telemetry-bar">
+                  <span id="player-time-display">00:00 / 00:00</span>
+                  <span id="player-file-meta" class="muted small">—</span>
+                </div>
+              </div>
+
               <form id="upload-form" class="stack-form">
                 <label class="dropzone" for="video-file">
                   <input id="video-file" type="file" accept="video/*" required>

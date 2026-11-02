@@ -16,6 +16,8 @@
   let cameraRecordTimer = null;
   let cameraStarting = false;
   let cameraProcessing = false;
+  let lastRecordedBlobUrl = null;
+  let videoArchiveCache = [];
   let apiReady = false;
   let localModeAvailable = false;
   let monitoringCameras = [];
@@ -157,6 +159,7 @@
     const titles = { overview: 'Overview', camera: 'CCTV-1 camera', monitoring: 'Monitoring', evidence: 'Evidence workbench', assistant: 'Grounded assistant', alerts: 'Alerts & rules', settings: 'Settings & capabilities' };
     $('view-title').textContent = titles[view] || 'Overview';
     if (view === 'monitoring') loadMonitoring();
+    if (view === 'evidence') loadVideoArchive();
   }
 
   function showAuth(show) {
@@ -506,6 +509,20 @@
 
   async function inspectEvent(event) {
     $('selected-event').textContent = JSON.stringify(event, null, 2);
+    // Seek main pre-recorded / uploaded footage player to the event timestamp
+    const wbPlayer = $('workbench-video-player');
+    if (wbPlayer && wbPlayer.src && event.timestamp_seconds !== undefined) {
+      wbPlayer.currentTime = Math.max(0, event.timestamp_seconds - 0.5);
+      wbPlayer.play().catch(() => {});
+    } else if (event.video_id) {
+      playPreRecordedVideo(event.video_id);
+      setTimeout(() => {
+        if (wbPlayer && event.timestamp_seconds !== undefined) {
+          wbPlayer.currentTime = Math.max(0, event.timestamp_seconds - 0.5);
+          wbPlayer.play().catch(() => {});
+        }
+      }, 400);
+    }
     try {
       const evidence = await request(`/api/v1/evidence/${encodeURIComponent(event.event_id)}`);
       $('evidence-panel').textContent = evidence.artifact ? `Artifact: ${evidence.artifact}\nStatus: ${evidence.status}` : 'Evidence is not ready.';
@@ -516,6 +533,75 @@
         $('evidence-player').hidden = false;
       }
     } catch (error) { $('evidence-panel').textContent = error.message; }
+  }
+
+  async function loadVideoArchive() {
+    const select = $('pre-recorded-video-select');
+    if (!select) return;
+    try {
+      const res = await request('/api/v1/videos');
+      videoArchiveCache = res.videos || [];
+      const currentVal = select.value;
+      select.innerHTML = '';
+
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = videoArchiveCache.length
+        ? `-- Select from Stored Surveillance Videos (${videoArchiveCache.length}) --`
+        : '-- No Stored Surveillance Videos Found --';
+      select.appendChild(defaultOpt);
+
+      videoArchiveCache.forEach((v) => {
+        const opt = document.createElement('option');
+        opt.value = v.video_id;
+        const sizeMb = v.size_bytes ? `${(v.size_bytes / 1024 / 1024).toFixed(1)} MB` : '';
+        const dur = v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '';
+        const metaParts = [sizeMb, dur].filter(Boolean).join(', ');
+        const name = v.filename || v.video_id;
+        opt.textContent = metaParts ? `${name} [${metaParts}]` : name;
+        select.appendChild(opt);
+      });
+
+      if (currentVal && videoArchiveCache.some((v) => v.video_id === currentVal)) {
+        select.value = currentVal;
+      }
+    } catch (err) {
+      console.warn('Failed to load video archive:', err);
+    }
+  }
+
+  function playPreRecordedVideo(videoId, customTitle = '', customUrl = '') {
+    if (!videoId && !customUrl) return;
+    const wbPlayer = $('workbench-video-player');
+    const playerCard = $('workbench-player-card');
+    const select = $('pre-recorded-video-select');
+    if (videoId) {
+      currentVideoId = videoId;
+      if ($('video-id')) $('video-id').value = videoId;
+      if ($('probe-video')) $('probe-video').disabled = false;
+      if (select && select.value !== videoId) {
+        select.value = videoId;
+      }
+    }
+    const found = videoArchiveCache.find((v) => v.video_id === videoId);
+    const title = customTitle || found?.filename || videoId || 'Surveillance Video';
+    if ($('workbench-player-title')) $('workbench-player-title').textContent = title;
+    if ($('workbench-player-badge')) {
+      $('workbench-player-badge').textContent = customUrl && !videoId ? 'LOCAL PREVIEW' : 'STORED ARCHIVE';
+    }
+    const sizeStr = found?.size_bytes ? `${(found.size_bytes / 1024 / 1024).toFixed(2)} MB` : '';
+    const durStr = found?.duration_seconds ? `${found.duration_seconds.toFixed(1)}s` : '';
+    if ($('player-file-meta')) {
+      $('player-file-meta').textContent = [sizeStr, durStr, videoId ? `ID: ${videoId}` : ''].filter(Boolean).join(' · ') || 'CCTV Stream Ready';
+    }
+
+    if (wbPlayer) {
+      const srcUrl = customUrl || endpoint(`/api/v1/videos/${encodeURIComponent(videoId)}/stream${accessToken ? '?token=' + encodeURIComponent(accessToken) : ''}`);
+      wbPlayer.src = srcUrl;
+      if (playerCard) playerCard.hidden = false;
+      wbPlayer.load();
+      wbPlayer.play().catch(() => {});
+    }
   }
 
   async function uploadVideo(file) {
@@ -596,9 +682,11 @@
       $('video-id').value = currentVideoId;
       $('probe-video').disabled = false;
       showResult('video-result', `Uploaded ${body.filename}\nVideo ID: ${body.video_id}`);
+      playPreRecordedVideo(body.video_id, body.filename);
+      await loadVideoArchive();
       $('metric-capture').textContent = 'Uploaded';
       $('metric-capture-detail').textContent = body.filename;
-      notify('Recording uploaded');
+      notify('Recording uploaded — Ready to play and analyze');
     } catch (error) {
       showResult('video-result', `Upload failed: ${error.message}`, true);
       notify(error.message, true);
@@ -653,6 +741,16 @@
 
   async function startCamera() {
     if (cameraStarting || cameraStream) return;
+    const playbackEl = $('camera-playback');
+    if (playbackEl) {
+      playbackEl.pause();
+      playbackEl.hidden = true;
+    }
+    if ($('camera-feed-mode')) {
+      $('camera-feed-mode').textContent = 'LIVE';
+      $('camera-feed-mode').classList.remove('replay');
+    }
+    if ($('btn-live-switch')) $('btn-live-switch').hidden = true;
     const button = $('camera-start');
     cameraStarting = true;
     button.disabled = true;
@@ -785,6 +883,28 @@
     const type = recorder?.mimeType || 'video/webm';
     const blob = new Blob(cameraChunks, { type });
     const filename = `cctv1-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+
+    if (blob.size) {
+      if (lastRecordedBlobUrl) {
+        URL.revokeObjectURL(lastRecordedBlobUrl);
+      }
+      lastRecordedBlobUrl = URL.createObjectURL(blob);
+      const playbackEl = $('camera-playback');
+      if (playbackEl) {
+        playbackEl.src = lastRecordedBlobUrl;
+        playbackEl.hidden = false;
+        $('camera-preview').hidden = true;
+        $('camera-placeholder').hidden = true;
+        if ($('camera-feed-mode')) {
+          $('camera-feed-mode').textContent = 'REPLAY';
+          $('camera-feed-mode').classList.add('replay');
+        }
+        if ($('btn-replay-capture')) $('btn-replay-capture').hidden = false;
+        if ($('btn-live-switch')) $('btn-live-switch').hidden = false;
+        playbackEl.play().catch(() => {});
+      }
+    }
+
     showResult('camera-result', `Captured ${(blob.size / 1024 / 1024).toFixed(2)} MB\nUploading CCTV-1 footage…`);
     try {
       if (!blob.size) throw new Error('No video data was captured. Record for a few seconds and try again.');
@@ -803,10 +923,39 @@
       $('metric-capture').textContent = 'CCTV-1';
       const events = await loadEvents();
       $('metric-capture-detail').textContent = `${body.events?.length ?? events.length} verified event(s)`;
-      showResult('camera-result', `Stored video: ${uploaded.video_id}\nJob: ${body.job_id}\nEvents: ${body.events?.length ?? events.length}\nEvidence clips are available for ready events.`);
+      
+      const resCard = $('camera-result');
+      if (resCard) {
+        resCard.hidden = false;
+        resCard.classList.remove('bad');
+        resCard.innerHTML = `
+          <div class="replay-card">
+            <div class="replay-card-meta">
+              <strong>Recorded CCTV-1 Footage</strong>
+              <small>${(blob.size / 1024 / 1024).toFixed(2)} MB · Video ID: <code>${escape(uploaded.video_id)}</code></small>
+            </div>
+            <video class="result-video-player" src="${lastRecordedBlobUrl}" controls playsinline></video>
+            <div class="button-row" style="margin-top:8px;">
+              <a class="button secondary small" href="${lastRecordedBlobUrl}" download="${escape(filename)}">⬇ Download Video</a>
+              <button class="button primary small" id="btn-open-workbench-recorded" type="button">Open in Forensic Workbench</button>
+            </div>
+            <div class="result-card-stats" style="margin-top:8px;font-size:12px;color:var(--text-muted, #94a3b8);">
+              Status: Processed · Events: ${body.events?.length ?? events.length} · Job: ${escape(body.job_id)}
+            </div>
+          </div>
+        `;
+        const openWbBtn = $('btn-open-workbench-recorded');
+        if (openWbBtn) {
+          openWbBtn.addEventListener('click', () => {
+            setView('evidence');
+            playPreRecordedVideo(uploaded.video_id, filename, lastRecordedBlobUrl);
+          });
+        }
+      }
       setStatus('camera-status', 'Capture uploaded and processing completed.');
       await loadEvents();
-      notify('CCTV-1 capture processed');
+      await loadVideoArchive();
+      notify('CCTV-1 capture processed and ready for playback');
     } catch (error) {
       showResult('camera-result', error.message, true);
       setStatus('camera-status', error.message, true);
@@ -1372,7 +1521,14 @@
   $('camera-list').addEventListener('click', handleCameraAction);
   $('upload-form').addEventListener('submit', uploadForm);
   $('process-form').addEventListener('submit', processForm);
-  $('video-file').addEventListener('change', (event) => { $('file-name').textContent = event.target.files[0]?.name || 'MP4, MOV, WebM, AVI'; });
+  $('video-file').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    $('file-name').textContent = file?.name || 'Supports MP4, MOV, WebM, AVI (up to 500 MB)';
+    if (file) {
+      const previewUrl = URL.createObjectURL(file);
+      playPreRecordedVideo('', file.name, previewUrl);
+    }
+  });
   $('probe-video').addEventListener('click', async () => { try { showResult('probe-result', JSON.stringify(await request(`/api/v1/videos/${encodeURIComponent(currentVideoId || $('video-id').value)}/probe`), null, 2)); } catch (error) { showResult('probe-result', error.message, true); } });
   $('refresh-events').addEventListener('click', loadEvents);
   $('search-events').addEventListener('click', loadEvents);
@@ -1615,6 +1771,81 @@
 
     // 6. Simulated Auxiliary Camera Feeds (CAM-02, CAM-03, CAM-04)
     initAuxiliaryFeeds();
+
+    // 7. Video Archive Selector & Replay Listeners
+    const archiveSelect = $('pre-recorded-video-select');
+    if (archiveSelect) {
+      archiveSelect.addEventListener('change', (e) => {
+        const vid = e.target.value;
+        if (vid) playPreRecordedVideo(vid);
+      });
+    }
+
+    const refreshArchiveBtn = $('btn-refresh-archive');
+    if (refreshArchiveBtn) {
+      refreshArchiveBtn.addEventListener('click', () => loadVideoArchive());
+    }
+
+    const replayCaptureBtn = $('btn-replay-capture');
+    if (replayCaptureBtn) {
+      replayCaptureBtn.addEventListener('click', () => {
+        const playbackEl = $('camera-playback');
+        if (!playbackEl || !lastRecordedBlobUrl) {
+          notify('No recorded capture available yet to replay.', true);
+          return;
+        }
+        $('camera-preview').hidden = true;
+        $('camera-placeholder').hidden = true;
+        playbackEl.hidden = false;
+        if ($('camera-feed-mode')) {
+          $('camera-feed-mode').textContent = 'REPLAY';
+          $('camera-feed-mode').classList.add('replay');
+        }
+        if ($('btn-live-switch')) $('btn-live-switch').hidden = false;
+        playbackEl.play().catch(() => {});
+      });
+    }
+
+    const liveSwitchBtn = $('btn-live-switch');
+    if (liveSwitchBtn) {
+      liveSwitchBtn.addEventListener('click', () => {
+        const playbackEl = $('camera-playback');
+        if (playbackEl) {
+          playbackEl.pause();
+          playbackEl.hidden = true;
+        }
+        liveSwitchBtn.hidden = true;
+        if (cameraStream) {
+          $('camera-preview').hidden = false;
+          $('camera-placeholder').hidden = true;
+          if ($('camera-feed-mode')) {
+            $('camera-feed-mode').textContent = 'LIVE';
+            $('camera-feed-mode').classList.remove('replay');
+          }
+        } else {
+          $('camera-preview').hidden = true;
+          $('camera-placeholder').hidden = false;
+          if ($('camera-feed-mode')) {
+            $('camera-feed-mode').textContent = 'OFFLINE';
+            $('camera-feed-mode').classList.remove('replay');
+          }
+        }
+      });
+    }
+
+    const wbPlayer = $('workbench-video-player');
+    if (wbPlayer) {
+      wbPlayer.addEventListener('timeupdate', () => {
+        const cur = Math.floor(wbPlayer.currentTime || 0);
+        const dur = Math.floor(wbPlayer.duration || 0);
+        const curM = String(Math.floor(cur / 60)).padStart(2, '0');
+        const curS = String(cur % 60).padStart(2, '0');
+        const durM = String(Math.floor(dur / 60)).padStart(2, '0');
+        const durS = String(dur % 60).padStart(2, '0');
+        const timeDisplay = $('player-time-display');
+        if (timeDisplay) timeDisplay.textContent = `${curM}:${curS} / ${isNaN(dur) ? '00:00' : `${durM}:${durS}`}`;
+      });
+    }
   }
 
   function initAuxiliaryFeeds() {
@@ -1729,5 +1960,6 @@
     initVmsEnhancements();
     await checkHealth();
     await refreshIdentity();
+    await loadVideoArchive();
   })();
 })();

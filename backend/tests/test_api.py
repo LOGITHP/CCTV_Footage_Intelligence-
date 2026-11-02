@@ -304,3 +304,36 @@ def test_probe_resolves_legacy_host_path_inside_active_media_root(monkeypatch, t
     )
     assert response.status_code == 200
     assert response.json()["format_name"] == "webm"
+
+
+def test_list_videos_and_stream_video_route(monkeypatch, tmp_path):
+    store = Store(":memory:")
+    monkeypatch.setattr(api_module, "store", store)
+    monkeypatch.setattr(api_module, "media_root", tmp_path)
+    client = TestClient(api_module.app)
+
+    # Upload video fixture
+    payload = b"fake-cctv-surveillance-mp4-stream-data"
+    upload = client.post("/api/v1/videos", files={"file": ("cctv_test.mp4", payload, "video/mp4")})
+    assert upload.status_code == 201
+    video_id = upload.json()["video_id"]
+
+    # Test GET /api/v1/videos
+    list_resp = client.get("/api/v1/videos")
+    assert list_resp.status_code == 200
+    videos = list_resp.json()["videos"]
+    assert any(v["video_id"] == video_id for v in videos)
+
+    # Test GET /api/v1/videos/{video_id}/stream
+    stream_resp = client.get(f"/api/v1/videos/{video_id}/stream")
+    assert stream_resp.status_code == 200
+    assert "video/mp4" in stream_resp.headers["content-type"]
+    assert stream_resp.content == payload
+
+    # Test HTTP Range request (scrubbing/seeking)
+    range_resp = client.get(f"/api/v1/videos/{video_id}/stream", headers={"Range": "bytes=0-3"})
+    assert range_resp.status_code == 206
+    assert range_resp.content == payload[:4]
+
+    # Test 404 for nonexistent video
+    assert client.get("/api/v1/videos/nonexistent-id/stream").status_code == 404

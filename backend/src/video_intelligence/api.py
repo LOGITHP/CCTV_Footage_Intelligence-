@@ -816,6 +816,43 @@ async def upload_video(file: UploadFile, principal: UserPrincipal = Depends(app_
     return result
 
 
+@app.get("/api/v1/videos")
+def list_videos(principal: UserPrincipal = Depends(app_permission(Permission.VIDEO_READ))) -> dict:
+    videos = store.list_videos()
+    return {"videos": [public_video(v) for v in videos]}
+
+
+@app.get("/api/v1/videos/{video_id}/stream")
+def stream_video(video_id: str, token: str | None = None, principal: UserPrincipal | None = Depends(optional_principal)):
+    if principal is None and token:
+        try:
+            principal = authentication_service.principal_from_token(token)
+        except Exception:
+            pass
+    if security_settings.policy.require_authentication:
+        if principal is None or not has_permission(principal, Permission.VIDEO_READ):
+            raise HTTPException(status_code=401, detail="authentication required to view video")
+
+    video = store.get_video(video_id)
+    if video is None:
+        raise HTTPException(status_code=404, detail="video not found")
+
+    resolved = resolve_media_path(video)
+    if not resolved.is_file():
+        raise HTTPException(status_code=404, detail="video media file not found on disk")
+
+    suffix = resolved.suffix.lower()
+    media_types = {
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo",
+        ".mkv": "video/x-matroska",
+    }
+    media_type = media_types.get(suffix, "video/mp4")
+    return FileResponse(resolved, media_type=media_type, filename=resolved.name)
+
+
 @app.get("/api/v1/videos/{video_id}")
 def get_video(video_id: str, principal: UserPrincipal = Depends(app_permission(Permission.VIDEO_READ))) -> dict:
     result = store.get_video(video_id)
@@ -1121,15 +1158,28 @@ def evidence_url(event_id: str, request: Request, principal: UserPrincipal = Dep
 
 
 @app.get("/api/v1/evidence/{event_id}/download", name="download_evidence")
-def download_evidence(event_id: str, token: str, request: Request):
+def download_evidence(event_id: str, token: str | None = None, request: Request = None, principal: UserPrincipal | None = Depends(optional_principal)):
     result = store.get_event(event_id)
     if result is None:
         raise HTTPException(status_code=404, detail="event not found")
-    try:
-        signer = EvidenceTokenSigner.from_env()
-        grant = signer.verify(token, event_id=event_id, evidence_key=result.get("evidence_path"), required_scope="evidence:read")
-    except (EvidenceTokenError, EvidenceAccessDenied, ValueError) as error:
-        raise HTTPException(status_code=403, detail="invalid or expired evidence grant") from error
+    grant_subject = "system"
+    if token:
+        try:
+            signer = EvidenceTokenSigner.from_env()
+            grant = signer.verify(token, event_id=event_id, evidence_key=result.get("evidence_path"), required_scope="evidence:read")
+            grant_subject = grant.subject
+        except (EvidenceTokenError, EvidenceAccessDenied, ValueError):
+            try:
+                principal = authentication_service.principal_from_token(token)
+                grant_subject = principal.user_id
+            except Exception as error:
+                if principal is None:
+                    raise HTTPException(status_code=403, detail="invalid or expired evidence grant") from error
+    elif principal is None:
+        if security_settings.policy.require_authentication:
+            raise HTTPException(status_code=401, detail="authentication or evidence grant token required")
+    else:
+        grant_subject = principal.user_id
     evidence_key = result.get("evidence_path")
     settings = load_settings()
     if settings.object_storage.backend == "s3" and evidence_key:
