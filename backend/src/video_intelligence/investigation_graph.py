@@ -239,7 +239,13 @@ def node_grounded_reasoning(state: InvestigationGraphState) -> dict[str, Any]:
             responder = MetaMuseGroundedResponder()
             llm_text = responder.respond(query, citations)
             if trimmed_clips:
-                clip_note = f"\n\n[Trimmed Evidence Video: {trimmed_clips[0]['interval_formatted']}]"
+                clip_summary_lines = ["\n\n### Dynamically Trimmed Video Evidence Clips"]
+                for clip in trimmed_clips:
+                    clip_summary_lines.append(
+                        f"- **Event `{clip['event_id']}`**: Window `{clip['interval_formatted']}` "
+                        f"({clip['duration_seconds']:.1f}s) — [Download Forensic Clip]({clip['download_url']})"
+                    )
+                clip_note = "\n".join(clip_summary_lines)
                 answer = f"{llm_text}{clip_note}"
             else:
                 answer = llm_text

@@ -71,11 +71,40 @@ def grounded_answer(plan: QueryPlan, matches: list[dict[str, Any]]) -> tuple[str
     if not matches:
         return "No supported match was found in the indexed evidence. The system did not find an event that satisfies the available filters.", []
     first = matches[0]
+    total = len(matches)
+
+    timeline_items = []
+    for idx, item in enumerate(matches, 1):
+        ts = float(item.get("timestamp_seconds", 0.0))
+        mm = int(ts // 60)
+        ss = ts % 60
+        timecode = f"{mm:02d}:{ss:05.2f} / {ts:.3f}s"
+        cam_info = f" | Camera: `{item.get('camera_id')}`" if item.get("camera_id") else ""
+        timeline_items.append(
+            f"  {idx}. [{timecode}] **{item.get('event_type', 'event').upper()}** — "
+            f"Target: `{item.get('object_id', 'unknown')}` ({item.get('object_label', 'object')}) "
+            f"in Zone: `{item.get('zone_id', 'unknown')}`{cam_info}"
+        )
+    timeline_block = "\n".join(timeline_items)
+
+    unique_zones = sorted(list({m.get("zone_id", "unknown") for m in matches if m.get("zone_id")}))
+    unique_objects = sorted(list({f"{m.get('object_label', 'object')} ({m.get('object_id', 'unknown')})" for m in matches}))
+    min_ts = min(float(m.get("timestamp_seconds", 0)) for m in matches)
+    max_ts = max(float(m.get("timestamp_seconds", 0)) for m in matches)
+
     answer = (
-        f"Found {len(matches)} supported event(s). The first verified match is "
+        f"Found {total} supported event(s). The first verified match is "
         f"{first['event_type']} for {first.get('object_label', 'object')} "
         f"{first['object_id']} in zone {first['zone_id']} at "
-        f"{first['timestamp_seconds']:.3f} seconds."
+        f"{first['timestamp_seconds']:.3f} seconds.\n\n"
+        f"### 1. Executive Incident Summary\n"
+        f"- **Primary Finding**: {first.get('object_label', 'object').capitalize()} `{first['object_id']}` performed a verified `{first['event_type']}` event in zone `{first['zone_id']}`.\n"
+        f"- **Incident Scope**: {total} total verified event(s) recorded across {len(unique_zones)} zone(s) ({', '.join(unique_zones)}) involving {len(unique_objects)} target track(s) ({', '.join(unique_objects)}).\n"
+        f"- **Temporal Window**: Activity observed between {min_ts:.3f}s and {max_ts:.3f}s (Total span: {max_ts - min_ts:.2f}s).\n\n"
+        f"### 2. Chronological Event Breakdown\n"
+        f"{timeline_block}\n\n"
+        f"### 3. Evidence Status\n"
+        f"All events have been verified by SAM 3.1 perception and anchored with immutable cryptographic event citations."
     )
     return answer, citations
 

@@ -846,6 +846,20 @@
     $('chat-question').value = '';
   }
 
+  function formatChatMessage(rawText) {
+    const div = document.createElement('div');
+    div.textContent = rawText;
+    let safe = div.innerHTML;
+
+    safe = safe.replace(/^### (.*$)/gim, '<h4 class="chat-md-h4">$1</h4>');
+    safe = safe.replace(/^## (.*$)/gim, '<h3 class="chat-md-h3">$1</h3>');
+    safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    safe = safe.replace(/`([^`]+)`/g, '<code class="chat-md-code">$1</code>');
+    safe = safe.replace(/^\s*[-•]\s+(.*$)/gim, '<div class="chat-md-bullet"><span class="bullet-dot">▪</span> $1</div>');
+
+    return safe;
+  }
+
   function appendChat(role, message, bad = false, clips = []) {
     const history = $('chat-history');
     if (history.querySelector('.chat-empty')) history.replaceChildren();
@@ -853,8 +867,8 @@
     item.className = `chat-message ${role}${bad ? ' bad' : ''}`;
     
     const textNode = document.createElement('div');
-    textNode.style.whiteSpace = 'pre-wrap';
-    textNode.textContent = message;
+    textNode.className = 'chat-message-content';
+    textNode.innerHTML = formatChatMessage(message);
     item.appendChild(textNode);
 
     if (Array.isArray(clips) && clips.length > 0) {
