@@ -167,7 +167,13 @@ def generate_zone_events(
                 key = (item.track_scope, item.object_id, zone.zone_id)
                 current = zone.contains(item.x, item.y)
                 prior = previous.get(key)
-                if prior is not None and prior != current:
+                if prior is None:
+                    if current:
+                        event_type = "enter"
+                        identity = f"{item.track_scope}|{zone.zone_id}|{item.object_id}|{event_type}|{timestamp:.9f}"
+                        event_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+                        events.append(ZoneEvent(event_id, event_type, zone.zone_id, item.object_id, timestamp, item.label, item.track_scope))
+                elif prior != current:
                     event_type = "enter" if current else "exit"
                     identity = f"{item.track_scope}|{zone.zone_id}|{item.object_id}|{event_type}|{timestamp:.9f}"
                     event_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]

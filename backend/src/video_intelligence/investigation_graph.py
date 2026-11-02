@@ -46,14 +46,41 @@ class InvestigationGraphState(TypedDict):
 
 def node_plan_investigation(state: InvestigationGraphState) -> dict[str, Any]:
     """Parse user query into structured search hypotheses."""
+    import re
     query = state["query"]
     event_id = state.get("event_id")
     camera_id = state.get("camera_id")
     session_id = state.get("session_id")
+    video_id = state.get("video_id")
     store = state["store"]
 
+    uuid_pattern = r"\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b"
+    # Check if a video UUID is in query or session_id or camera_id
+    if not video_id:
+        match = re.search(uuid_pattern, query, re.IGNORECASE)
+        if match:
+            video_id = match.group(1).lower()
+        elif session_id and re.search(uuid_pattern, session_id, re.IGNORECASE):
+            video_id = session_id.strip().lower()
+        elif camera_id and re.search(uuid_pattern, camera_id, re.IGNORECASE):
+            video_id = camera_id.strip().lower()
+
+    # Check if query asks about "latest recording" or "recent video"
+    if not video_id and re.search(r"\b(latest|last|recent|newest)\s+(recording|footage|video|capture|clip)\b", query, re.IGNORECASE):
+        videos = store.list_videos() if hasattr(store, "list_videos") else []
+        if videos:
+            video_id = videos[-1].get("video_id")
+
+    # If camera_id was provided as "Zone 1" or "zone-1", interpret as zone_id
+    detected_zone = None
+    if camera_id and re.search(r"\bzone[-_\s]*\d+\b", camera_id, re.IGNORECASE):
+        detected_zone = camera_id.strip().lower().replace(" ", "-")
+        camera_id = None
+
+    state["video_id"] = video_id
+    state["camera_id"] = camera_id
+
     if event_id:
-        video_id = state.get("video_id")
         scoped_video_ids = _scoped_video_ids(store, camera_id=camera_id, session_id=session_id)
         event = store.get_event(event_id)
         matches = [event] if event and (
@@ -64,6 +91,7 @@ def node_plan_investigation(state: InvestigationGraphState) -> dict[str, Any]:
             query,
             camera_id=camera_id,
             session_id=session_id,
+            zone_id=detected_zone,
         )
         return {
             "plan": plan.__dict__,
@@ -75,6 +103,7 @@ def node_plan_investigation(state: InvestigationGraphState) -> dict[str, Any]:
         query,
         camera_id=camera_id,
         session_id=session_id,
+        zone_id=detected_zone,
     )
     return {
         "plan": plan.__dict__,
@@ -106,6 +135,38 @@ def node_retrieve_evidence(state: InvestigationGraphState) -> dict[str, Any]:
             object_label=plan_dict.get("object_label"),
             event_type=plan_dict.get("event_type"),
         )
+
+        # Fallback to track observations if 0 events found for a video
+        if not matches and video_id and hasattr(store, "search_tracks"):
+            tracks = store.search_tracks(video_id=video_id)
+            if tracks:
+                track_groups: dict[str, list[dict[str, Any]]] = {}
+                for t in tracks:
+                    tid = str(t.get("track_id") or "unknown")
+                    track_groups.setdefault(tid, []).append(t)
+
+                for tid, obs_list in track_groups.items():
+                    first_obs = min(obs_list, key=lambda o: float(o.get("timestamp_seconds", 0)))
+                    last_obs = max(obs_list, key=lambda o: float(o.get("timestamp_seconds", 0)))
+                    start_ts = float(first_obs.get("timestamp_seconds", 0))
+                    end_ts = float(last_obs.get("timestamp_seconds", 0))
+                    label = first_obs.get("object_label") or "object"
+                    cat = first_obs.get("object_category") or label
+                    matches.append({
+                        "event_id": f"trk-{tid}",
+                        "video_id": video_id,
+                        "event_type": "tracked",
+                        "zone_id": plan_dict.get("zone_id") or "camera-view",
+                        "object_id": tid,
+                        "object_label": label,
+                        "object_category": cat,
+                        "timestamp_seconds": start_ts,
+                        "end_seconds": end_ts,
+                        "duration_seconds": round(end_ts - start_ts, 2),
+                        "observation_count": len(obs_list),
+                        "evidence_status": "ready",
+                    })
+                matches.sort(key=lambda m: (float(m.get("timestamp_seconds", 0)), str(m.get("object_id", ""))))
     except Exception as error:
         import logging
         logging.getLogger("video_intelligence").warning(

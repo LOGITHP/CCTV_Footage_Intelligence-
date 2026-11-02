@@ -995,14 +995,30 @@
     if (!question) return;
     appendChat('user', question);
     try {
+      const rawSession = $('chat-session-id')?.value.trim() || null;
+      const rawCamera = $('chat-camera-id')?.value.trim() || null;
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      let effectiveVideoId = currentVideoId || null;
+      let effectiveSessionId = rawSession;
+      let effectiveCameraId = rawCamera;
+
+      if (rawSession && uuidRe.test(rawSession)) {
+        effectiveVideoId = rawSession;
+        effectiveSessionId = null;
+      } else if (rawCamera && uuidRe.test(rawCamera)) {
+        effectiveVideoId = rawCamera;
+        effectiveCameraId = null;
+      }
+
       const body = await request('/api/v1/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: question,
-          video_id: currentVideoId || null,
-          camera_id: $('chat-camera-id')?.value.trim() || null,
-          session_id: $('chat-session-id')?.value.trim() || null,
+          video_id: effectiveVideoId,
+          camera_id: effectiveCameraId,
+          session_id: effectiveSessionId,
         }),
       });
       appendChat('assistant', `${body.answer}\n\n${(body.citations || []).length} verified citation(s) · ${body.answer_mode}`, false, body.trimmed_clips || []);
