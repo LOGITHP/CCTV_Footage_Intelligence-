@@ -140,6 +140,7 @@ class NotificationSettings:
     telegram_allowed_chat_ids: tuple[str, ...] = ()
     telegram_webhook_secret: str | None = field(default=None, repr=False)
     telegram_api_base_url: str = "https://api.telegram.org"
+    telegram_webhook_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +189,7 @@ class InfrastructureSettings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "InfrastructureSettings":
+        telegram_file: dict[str, object] = {}
         if environ is None:
             for candidate in (Path(".env"), Path("../.env"), Path(__file__).resolve().parents[4] / ".env"):
                 if candidate.is_file():
@@ -203,6 +205,30 @@ class InfrastructureSettings:
                         pass
                     break
         env = os.environ if environ is None else environ
+        if environ is None:
+            telegram_path = Path(env.get("TELEGRAM_CONFIG_PATH", "data/telegram_config.json")).expanduser()
+            try:
+                if telegram_path.is_file():
+                    import json
+
+                    loaded = json.loads(telegram_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        telegram_file = loaded
+            except (OSError, UnicodeDecodeError, ValueError):
+                # Invalid runtime configuration is reported as unconfigured;
+                # the management endpoint can replace it atomically.
+                telegram_file = {}
+
+        def telegram_value(name: str) -> str | None:
+            configured = _first(env, name)
+            if configured is not None:
+                return configured
+            value = telegram_file.get(name)
+            return str(value).strip() if value is not None and str(value).strip() else None
+
+        telegram_allowed = _csv(env, "TELEGRAM_ALLOWED_CHAT_IDS")
+        if not telegram_allowed and isinstance(telegram_file.get("TELEGRAM_ALLOWED_CHAT_IDS"), (list, tuple)):
+            telegram_allowed = tuple(str(item).strip() for item in telegram_file["TELEGRAM_ALLOWED_CHAT_IDS"] if str(item).strip())
 
         database = DatabaseSettings(
             url=_first(env, "DATABASE_URL"),
@@ -271,11 +297,12 @@ class InfrastructureSettings:
             email_from=_first(env, "NOTIFICATION_EMAIL_FROM"),
             email_to=_first(env, "NOTIFICATION_EMAIL_TO"),
             email_starttls=_boolean(env, "NOTIFICATION_EMAIL_STARTTLS", default=False),
-            telegram_bot_token=_first(env, "TELEGRAM_BOT_TOKEN"),
-            telegram_chat_id=_first(env, "TELEGRAM_CHAT_ID"),
-            telegram_allowed_chat_ids=_csv(env, "TELEGRAM_ALLOWED_CHAT_IDS"),
-            telegram_webhook_secret=_first(env, "TELEGRAM_WEBHOOK_SECRET"),
-            telegram_api_base_url=_first(env, "TELEGRAM_API_BASE_URL") or "https://api.telegram.org",
+            telegram_bot_token=telegram_value("TELEGRAM_BOT_TOKEN"),
+            telegram_chat_id=telegram_value("TELEGRAM_CHAT_ID"),
+            telegram_allowed_chat_ids=telegram_allowed,
+            telegram_webhook_secret=telegram_value("TELEGRAM_WEBHOOK_SECRET"),
+            telegram_api_base_url=telegram_value("TELEGRAM_API_BASE_URL") or "https://api.telegram.org",
+            telegram_webhook_url=telegram_value("TELEGRAM_WEBHOOK_URL"),
         )
         retention = RetentionSettings(
             days=_integer(env, "RETENTION_DAYS", 30, minimum=1),

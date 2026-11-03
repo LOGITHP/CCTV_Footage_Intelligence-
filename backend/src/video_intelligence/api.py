@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import json
 import logging
 import os
 from pathlib import Path, PureWindowsPath
@@ -88,6 +89,7 @@ from .schemas import (
     SearchRequest,
     SemanticIndexRequest,
     SemanticSearchRequest,
+    TelegramConfigurationRequest,
 )
 from .semantic import SemanticSearchError, SemanticSearchService
 from .storage import Store
@@ -1219,6 +1221,103 @@ async def telegram_webhook(request: Request) -> dict[str, Any]:
     except Exception as error:
         logger.exception("Telegram update handling failed")
         raise HTTPException(status_code=502, detail="Telegram update could not be processed") from error
+
+
+def _telegram_config_path() -> Path:
+    return Path(os.getenv("TELEGRAM_CONFIG_PATH", "data/telegram_config.json")).expanduser()
+
+
+@app.get("/api/v1/integrations/telegram/config")
+def telegram_config_status(principal: UserPrincipal = Depends(app_permission(Permission.SYSTEM_MONITOR))) -> dict[str, Any]:
+    settings = load_settings().notifications
+    return {
+        "configured": bool(settings.telegram_bot_token and settings.telegram_chat_id and settings.telegram_webhook_secret),
+        "chat_id": settings.telegram_chat_id,
+        "allowed_chat_ids": list(settings.telegram_allowed_chat_ids),
+        "api_base_url": settings.telegram_api_base_url,
+        "webhook_url": settings.telegram_webhook_url or "",
+        "config_path": str(_telegram_config_path()),
+    }
+
+
+@app.post("/api/v1/integrations/telegram/config")
+def save_telegram_config(
+    request: TelegramConfigurationRequest,
+    principal: UserPrincipal = Depends(app_permission(Permission.SYSTEM_MONITOR)),
+) -> dict[str, Any]:
+    from urllib.parse import urlparse
+
+    parsed_api = urlparse(request.api_base_url)
+    if parsed_api.scheme not in {"http", "https"} or not parsed_api.netloc:
+        raise HTTPException(status_code=422, detail="api_base_url must be an absolute http(s) URL")
+    if request.webhook_url:
+        parsed_webhook = urlparse(request.webhook_url)
+        if parsed_webhook.scheme != "https" or not parsed_webhook.netloc:
+            raise HTTPException(status_code=422, detail="webhook_url must be an absolute HTTPS URL")
+    allowed = [str(value).strip() for value in request.allowed_chat_ids if str(value).strip()]
+    if request.chat_id not in allowed:
+        allowed.insert(0, request.chat_id)
+    document = {
+        "TELEGRAM_BOT_TOKEN": request.bot_token,
+        "TELEGRAM_CHAT_ID": request.chat_id,
+        "TELEGRAM_ALLOWED_CHAT_IDS": allowed,
+        "TELEGRAM_WEBHOOK_SECRET": request.webhook_secret,
+        "TELEGRAM_API_BASE_URL": request.api_base_url.rstrip("/"),
+        "TELEGRAM_WEBHOOK_URL": request.webhook_url or "",
+    }
+    path = _telegram_config_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.tmp")
+        temporary.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError as error:
+        raise HTTPException(status_code=500, detail=f"unable to save Telegram configuration: {error}") from error
+    webhook_registered = False
+    if request.webhook_url:
+        from .operations.telegram import TelegramBotClient
+
+        try:
+            TelegramBotClient(
+                request.bot_token,
+                api_base_url=request.api_base_url,
+                timeout_seconds=load_settings().notifications.webhook_timeout_seconds,
+            ).set_webhook(request.webhook_url, secret_token=request.webhook_secret)
+            webhook_registered = True
+        except Exception as error:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Telegram settings were saved, but webhook registration failed: {error}",
+            ) from error
+    audit("telegram.configure", principal=principal, resource_type="integration", resource_id="telegram")
+    return {
+        "configured": True,
+        "chat_id": request.chat_id,
+        "allowed_chat_ids": allowed,
+        "api_base_url": request.api_base_url.rstrip("/"),
+        "webhook_url": request.webhook_url,
+        "webhook_registered": webhook_registered,
+        "config_path": str(path),
+    }
+
+
+@app.post("/api/v1/integrations/telegram/test")
+def test_telegram_config(principal: UserPrincipal = Depends(app_permission(Permission.SYSTEM_MONITOR))) -> dict[str, Any]:
+    from .operations.telegram import TelegramBotClient
+
+    settings = load_settings().notifications
+    if not settings.telegram_bot_token or not settings.telegram_chat_id:
+        raise HTTPException(status_code=409, detail="save a Telegram bot token and chat ID first")
+    try:
+        TelegramBotClient(
+            settings.telegram_bot_token,
+            api_base_url=settings.telegram_api_base_url,
+            timeout_seconds=settings.webhook_timeout_seconds,
+        ).send_message(settings.telegram_chat_id, "VI Sentry Telegram integration test: alerts are connected.")
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"Telegram test failed: {error}") from error
+    audit("telegram.test", principal=principal, resource_type="integration", resource_id="telegram")
+    return {"status": "sent", "chat_id": settings.telegram_chat_id}
 
 
 @app.get("/api/v1/storage/summary")

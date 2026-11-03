@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Professional CCTV & AI Video Intelligence Management System">
   <title>VI Sentry — Professional Camera Management System | Video Intelligence Console</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <link rel="stylesheet" href="styles.css?v=2.2">
 </head>
 <body data-theme="dark">
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
@@ -253,7 +256,7 @@
               <p class="muted">Live multi-camera streaming with real-time interactive polygon zone definition and perimeter monitoring.</p>
             </div>
             <div class="vms-heading-controls">
-              <span id="camera-state" class="state-pill">OFFLINE</span>
+              <span id="camera-state" class="state-pill offline" style="color: #fca5a5; background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35);">ALL CAMERAS OFFLINE</span>
             </div>
           </div>
 
@@ -265,8 +268,8 @@
                 <div class="vms-feed-meta">
                   <span class="vms-feed-badge">CH-01</span>
                   <strong>CAM 01 · Primary Sentry</strong>
-                  <span id="camera-feed-mode" class="vms-feed-badge mode-badge">LIVE</span>
-                  <small id="camera-resolution">Ready to connect</small>
+                  <span id="camera-feed-mode" class="vms-feed-badge mode-badge offline">OFFLINE</span>
+                  <small id="camera-resolution">Camera Disconnected</small>
                 </div>
                 <div class="vms-feed-stats">
                   <span class="vms-timer" id="camera-timer">00:00</span>
@@ -283,7 +286,7 @@
                 <canvas id="camera-zone-canvas" class="camera-zone-canvas" width="640" height="480"></canvas>
 
                 <div id="camera-placeholder" class="camera-placeholder">
-                  <span class="placeholder-icon">◉</span>
+                  <span class="placeholder-icon">⊘</span>
                   <strong>Camera Feed Inactive</strong>
                   <small>Click "Start Camera" below to initiate local capture or WebRTC stream.</small>
                 </div>
@@ -293,7 +296,7 @@
                 <div class="vms-hud-reticle tr"></div>
                 <div class="vms-hud-reticle bl"></div>
                 <div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark" id="camera-hud-label">CAM-01 // LIVE HUD 1080p60 H.264</div>
+                <div class="vms-hud-watermark" id="camera-hud-label">CAM-01 // STANDBY · NO SIGNAL</div>
               </div>
 
               <div class="vms-feed-toolbar">
@@ -318,20 +321,21 @@
                 <div class="vms-feed-meta">
                   <span class="vms-feed-badge">CH-02</span>
                   <strong>CAM 02 · East Perimeter Gate</strong>
-                  <small>1920x1080 @ 30FPS · RTSP</small>
+                  <small>RTSP Feed · Standby</small>
                 </div>
-                <div class="vms-feed-stats"><span class="status-pill status-ready">MONITORING</span></div>
+                <div class="vms-feed-stats"><span class="status-pill status-failed">OFFLINE</span></div>
               </div>
               <div class="vms-frame-viewport aux-feed">
                 <canvas id="aux-canvas-ch2" class="aux-canvas" width="480" height="320"></canvas>
                 <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
                 <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-02 // PERIMETER NORTH</div>
+                <div class="vms-hud-watermark">CAM-02 // RTSP DISCONNECTED</div>
               </div>
               <div class="vms-feed-toolbar aux-toolbar">
-                <span class="vms-telemetry-tag">BITRATE: 3.2 Mbps</span>
-                <span class="vms-telemetry-tag">PACKET LOSS: 0.0%</span>
-                <span class="vms-telemetry-tag green">SECURE</span>
+                <span class="vms-telemetry-tag red">NO SIGNAL</span>
+                <span class="vms-telemetry-tag">BITRATE: 0.0 kbps</span>
+                <span class="vms-telemetry-tag">FPS: 0</span>
+                <button class="button text-button nav-to-cameras" type="button" data-nav-view="monitoring" style="color: #38bdf8; font-size: 11px; margin-left: auto;">＋ Configure RTSP</button>
               </div>
             </article>
 
@@ -341,20 +345,21 @@
                 <div class="vms-feed-meta">
                   <span class="vms-feed-badge">CH-03</span>
                   <strong>CAM 03 · Loading Dock & Bay</strong>
-                  <small>1920x1080 @ 30FPS · AI Active</small>
+                  <small>RTSP Feed · Standby</small>
                 </div>
-                <div class="vms-feed-stats"><span class="status-pill status-ready">MONITORING</span></div>
+                <div class="vms-feed-stats"><span class="status-pill status-failed">OFFLINE</span></div>
               </div>
               <div class="vms-frame-viewport aux-feed">
                 <canvas id="aux-canvas-ch3" class="aux-canvas" width="480" height="320"></canvas>
                 <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
                 <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-03 // VEHICLE ACCESS</div>
+                <div class="vms-hud-watermark">CAM-03 // RTSP DISCONNECTED</div>
               </div>
               <div class="vms-feed-toolbar aux-toolbar">
-                <span class="vms-telemetry-tag">VEHICLE DETECT: ON</span>
-                <span class="vms-telemetry-tag">DWELL THRESH: 30s</span>
-                <span class="vms-telemetry-tag green">NORMAL</span>
+                <span class="vms-telemetry-tag red">NO SIGNAL</span>
+                <span class="vms-telemetry-tag">BITRATE: 0.0 kbps</span>
+                <span class="vms-telemetry-tag">FPS: 0</span>
+                <button class="button text-button nav-to-cameras" type="button" data-nav-view="monitoring" style="color: #38bdf8; font-size: 11px; margin-left: auto;">＋ Configure RTSP</button>
               </div>
             </article>
 
@@ -364,20 +369,21 @@
                 <div class="vms-feed-meta">
                   <span class="vms-feed-badge">CH-04</span>
                   <strong>CAM 04 · Restricted Core Vault</strong>
-                  <small>Night-Vision IR Sensor · Tripwire</small>
+                  <small>IR Sensor · Standby</small>
                 </div>
-                <div class="vms-feed-stats"><span class="status-pill status-ready">GUARDED</span></div>
+                <div class="vms-feed-stats"><span class="status-pill status-failed">OFFLINE</span></div>
               </div>
-              <div class="vms-frame-viewport aux-feed nv-mode">
+              <div class="vms-frame-viewport aux-feed">
                 <canvas id="aux-canvas-ch4" class="aux-canvas" width="480" height="320"></canvas>
                 <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
                 <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-04 // IR THERMAL SENTRY</div>
+                <div class="vms-hud-watermark">CAM-04 // RTSP DISCONNECTED</div>
               </div>
               <div class="vms-feed-toolbar aux-toolbar">
-                <span class="vms-telemetry-tag">TRIPWIRE: ACTIVE</span>
-                <span class="vms-telemetry-tag">ALARM: ARMED</span>
-                <span class="vms-telemetry-tag green">ZERO BREACH</span>
+                <span class="vms-telemetry-tag red">NO SIGNAL</span>
+                <span class="vms-telemetry-tag">BITRATE: 0.0 kbps</span>
+                <span class="vms-telemetry-tag">FPS: 0</span>
+                <button class="button text-button nav-to-cameras" type="button" data-nav-view="monitoring" style="color: #38bdf8; font-size: 11px; margin-left: auto;">＋ Configure RTSP</button>
               </div>
             </article>
           </div>
@@ -738,7 +744,7 @@
               <h2>Live Stream & Perimeter Fleet Copilot</h2>
               <p class="muted">Real-time situational intelligence across active RTSP camera streams, perimeter tripwires, and live intrusion alerts. Powered by Meta Muse Spark 1.3.</p>
             </div>
-            <span class="vms-agent-pill"><span class="blink-dot"></span>LIVE MONITORING ACTIVE</span>
+            <span id="live-fleet-badge" class="vms-agent-pill offline" style="color: #fca5a5; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35);"><span class="blink-dot" style="background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>ALL CAMERAS OFFLINE (0 ACTIVE)</span>
           </div>
 
           <div class="assistant-layout">
@@ -756,9 +762,9 @@
 
               <div id="live-chat-history" class="chat-history">
                 <div class="chat-empty">
-                  <span class="chat-empty-mark">✦</span>
-                  <strong>Live Camera Matrix & Tripwire Intelligence</strong>
-                  <small>Ask about live camera statuses, active perimeter breaches, stream latency, or armed tripwires. Responses are strictly grounded in verified camera telemetry.</small>
+                  <span class="chat-empty-mark" style="color: #ef4444; background: rgba(239, 68, 68, 0.15);">⊘</span>
+                  <strong>All Camera Streams Currently Offline</strong>
+                  <small>No live RTSP camera streams are currently streaming frames. The Live Copilot reports verified offline fleet telemetry. Connect a camera in Camera Streams or start CAM-01 to begin real-time surveillance.</small>
                 </div>
               </div>
 
@@ -990,6 +996,47 @@
             </article>
           </div>
 
+          <article class="panel telegram-settings-card">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow telegram-eyebrow">TELEGRAM ALERTS</p>
+                <h3>BotFather Alert Delivery</h3>
+                <p class="panel-subcopy">Send perimeter alerts and unusual-activity summaries to Telegram, then answer operator questions from the same bot.</p>
+              </div>
+              <span id="telegram-config-badge" class="status-pill status-configured">NOT CONFIGURED</span>
+            </div>
+            <form id="telegram-config-form" class="telegram-config-form">
+              <div class="field-grid">
+                <label>BotFather API Token
+                  <input id="telegram-bot-token" type="password" required minlength="10" autocomplete="new-password" placeholder="123456789:AA…">
+                  <small>Use the token returned by @BotFather. It is never displayed after saving.</small>
+                </label>
+                <label>Telegram Chat ID
+                  <input id="telegram-chat-id" required placeholder="e.g. 123456789 or -100…" inputmode="numeric">
+                  <small>The chat that receives alerts and can ask questions.</small>
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>Allowed Chat IDs <span class="muted">optional</span>
+                  <input id="telegram-allowed-chat-ids" placeholder="123456789, -1001234567890">
+                  <small>Leave blank to use the default chat ID only.</small>
+                </label>
+                <label>Webhook Secret
+                  <input id="telegram-webhook-secret" type="password" required minlength="16" autocomplete="new-password" placeholder="Random secret, 16+ characters">
+                  <small>Telegram sends this in the webhook header for verification.</small>
+                </label>
+              </div>
+              <label>Public Webhook URL <span class="muted">HTTPS required by Telegram</span>
+                <input id="telegram-webhook-url" inputmode="url" placeholder="https://your-domain.com/api/v1/integrations/telegram/webhook">
+              </label>
+              <div class="telegram-actions">
+                <button id="telegram-save" class="button primary" type="submit">Save Telegram Settings</button>
+                <button id="telegram-test" class="button secondary" type="button" disabled>Send Test Alert</button>
+              </div>
+              <p id="telegram-config-status" class="form-status" role="status" aria-live="polite">Telegram is disabled until configured.</p>
+            </form>
+          </article>
+
           <div class="settings-section-grid">
             <article class="panel account-settings-card">
               <div class="panel-header">
@@ -1031,6 +1078,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>

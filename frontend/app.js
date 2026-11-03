@@ -25,7 +25,7 @@
   let monitoringSelectedId = '';
   let monitoringEditingId = '';
   let themePreference = localStorage.getItem('video-intelligence-theme') || 'system';
-  let sidebarCollapsed = localStorage.getItem('video-intelligence-sidebar') === 'collapsed';
+  let sidebarCollapsed = false;
 
   $('api-base').value = storedApi;
   $('auth-api-base').value = storedApi;
@@ -174,9 +174,11 @@
       settings: 'Console Configuration & Endpoints',
     };
     $('view-title').textContent = titles[effectiveView] || 'Operations Hub';
+    if (effectiveView === 'camera') initAuxiliaryFeeds();
     if (effectiveView === 'monitoring') loadMonitoring();
     if (effectiveView === 'evidence') loadVideoArchive();
     if (effectiveView === 'storage-vault') loadStorageVault();
+    if (effectiveView === 'settings') loadTelegramConfig();
   }
 
   function showAuth(show) {
@@ -411,6 +413,72 @@
     } catch (error) {
       ['overview-capabilities', 'settings-capabilities'].forEach((id) => { if ($(id)) $(id).innerHTML = `<div class="empty">${escape(error.message)}</div>`; });
       if ($('settings-runtime-summary')) $('settings-runtime-summary').textContent = 'Runtime readiness is unavailable until the backend responds.';
+    }
+  }
+
+  async function loadTelegramConfig() {
+    if (!$('telegram-config-form')) return;
+    try {
+      const config = await request('/api/v1/integrations/telegram/config');
+      $('telegram-chat-id').value = config.chat_id || '';
+      $('telegram-allowed-chat-ids').value = (config.allowed_chat_ids || []).join(', ');
+      $('telegram-webhook-url').value = config.webhook_url || `${location.origin}/api/v1/integrations/telegram/webhook`;
+      $('telegram-test').disabled = !config.configured;
+      const badge = $('telegram-config-badge');
+      badge.textContent = config.configured ? 'CONFIGURED' : 'NOT CONFIGURED';
+      badge.className = `status-pill ${config.configured ? 'status-running' : 'status-configured'}`;
+      setStatus('telegram-config-status', config.configured ? 'Telegram is configured. Save a new token to rotate it.' : 'Telegram is disabled until configured.');
+    } catch (error) {
+      setStatus('telegram-config-status', error.message, true);
+    }
+  }
+
+  async function saveTelegramConfig(event) {
+    event.preventDefault();
+    const button = $('telegram-save');
+    const release = setButtonBusy(button, 'Saving…');
+    try {
+      const allowed = $('telegram-allowed-chat-ids').value.split(',').map((value) => value.trim()).filter(Boolean);
+      const body = await request('/api/v1/integrations/telegram/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_token: $('telegram-bot-token').value.trim(),
+          chat_id: $('telegram-chat-id').value.trim(),
+          allowed_chat_ids: allowed,
+          webhook_secret: $('telegram-webhook-secret').value,
+          webhook_url: $('telegram-webhook-url').value.trim() || null,
+        }),
+      });
+      $('telegram-bot-token').value = '';
+      $('telegram-webhook-secret').value = '';
+      $('telegram-test').disabled = false;
+      $('telegram-config-badge').textContent = 'CONFIGURED';
+      $('telegram-config-badge').className = 'status-pill status-running';
+      setStatus('telegram-config-status', body.webhook_registered
+        ? 'Saved securely and webhook registered. Send a test alert or message the bot.'
+        : `Saved securely to ${body.config_path}. Add a public HTTPS webhook URL, then save again.`);
+      notify('Telegram settings saved');
+    } catch (error) {
+      setStatus('telegram-config-status', error.message, true);
+      notify(error.message, true);
+    } finally {
+      release();
+    }
+  }
+
+  async function testTelegramConfig() {
+    const button = $('telegram-test');
+    const release = setButtonBusy(button, 'Sending…');
+    try {
+      await request('/api/v1/integrations/telegram/test', { method: 'POST' });
+      setStatus('telegram-config-status', 'Test alert sent. Check the configured Telegram chat.');
+      notify('Telegram test alert sent');
+    } catch (error) {
+      setStatus('telegram-config-status', error.message, true);
+      notify(error.message, true);
+    } finally {
+      release();
     }
   }
 
@@ -1695,6 +1763,8 @@
   document.querySelectorAll('[data-go-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.goView)));
   $('overview-refresh').addEventListener('click', refreshDashboard);
   $('settings-refresh').addEventListener('click', loadCapabilities);
+  if ($('telegram-config-form')) $('telegram-config-form').addEventListener('submit', saveTelegramConfig);
+  if ($('telegram-test')) $('telegram-test').addEventListener('click', testTelegramConfig);
   $('monitoring-refresh').addEventListener('click', loadMonitoring);
   $('monitoring-anomalies-refresh').addEventListener('click', loadMonitoringAnomalies);
   $('monitoring-new-camera').addEventListener('click', () => { resetCameraForm(); $('camera-form-name').focus(); });
@@ -2042,112 +2112,98 @@
     }
   }
 
+  function drawOfflineScreen(canvas, chId, chName) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    // Dark terminal background
+    ctx.fillStyle = '#060a12';
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle radar grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < w; x += 32) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = 0; y < h; y += 32) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+
+    // Central NO SIGNAL badge box
+    const bw = Math.min(260, w - 40);
+    const bh = 84;
+    const bx = (w - bw) / 2;
+    const by = (h - bh) / 2;
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(bx, by, bw, bh, 8);
+    } else {
+      ctx.rect(bx, by, bw, bh);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Red offline dot
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(bx + 24, by + 28, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Offline Title
+    ctx.fillStyle = '#fca5a5';
+    ctx.font = 'bold 12px JetBrains Mono, monospace';
+    ctx.fillText('NO SIGNAL / OFFLINE', bx + 38, by + 32);
+
+    // Subtitle & stream info
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.fillText('RTSP STREAM DISCONNECTED', bx + 38, by + 50);
+    ctx.fillText(`${chId} · 0.0 kbps · 0 FPS`, bx + 38, by + 66);
+
+    // Corner reticles
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.lineWidth = 1.5;
+    const pad = 12, rlen = 16;
+    ctx.beginPath(); ctx.moveTo(pad, pad + rlen); ctx.lineTo(pad, pad); ctx.lineTo(pad + rlen, pad); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w - pad - rlen, pad); ctx.lineTo(w - pad, pad); ctx.lineTo(w - pad, pad + rlen); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, h - pad - rlen); ctx.lineTo(pad, h - pad); ctx.lineTo(pad + rlen, h - pad); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w - pad - rlen, h - pad); ctx.lineTo(w - pad, h - pad); ctx.lineTo(w - pad, h - pad - rlen); ctx.stroke();
+  }
+
   function initAuxiliaryFeeds() {
     const c2 = $('aux-canvas-ch2');
     const c3 = $('aux-canvas-ch3');
     const c4 = $('aux-canvas-ch4');
-    if (!c2 && !c3 && !c4) return;
 
-    let tick = 0;
-    setInterval(() => {
-      tick++;
-      // Feed CH-02 (East Perimeter)
-      if (c2) {
-        const ctx2 = c2.getContext('2d');
-        const w = c2.width, h = c2.height;
-        ctx2.fillStyle = '#060911';
-        ctx2.fillRect(0, 0, w, h);
+    const renderAllOffline = () => {
+      drawOfflineScreen(c2, 'CH-02', 'East Perimeter Gate');
+      drawOfflineScreen(c3, 'CH-03', 'Loading Dock & Bay');
+      drawOfflineScreen(c4, 'CH-04', 'Restricted Core Vault');
+    };
 
-        ctx2.strokeStyle = 'rgba(0, 229, 255, 0.12)';
-        ctx2.lineWidth = 1;
-        ctx2.beginPath();
-        for (let x = 0; x < w; x += 40) {
-          ctx2.moveTo(x, 0); ctx2.lineTo(x, h);
-        }
-        for (let y = 0; y < h; y += 40) {
-          ctx2.moveTo(0, y); ctx2.lineTo(w, y);
-        }
-        ctx2.stroke();
+    renderAllOffline();
 
-        const bx = 160 + Math.sin(tick * 0.04) * 45;
-        const by = 90 + Math.cos(tick * 0.03) * 20;
-        ctx2.strokeStyle = '#00e5ff';
-        ctx2.lineWidth = 1.8;
-        ctx2.strokeRect(bx, by, 65, 110);
-        ctx2.fillStyle = 'rgba(0, 229, 255, 0.15)';
-        ctx2.fillRect(bx, by, 65, 110);
+    // Re-render when views switch or window resizes
+    window.addEventListener('resize', renderAllOffline);
 
-        ctx2.fillStyle = '#00e5ff';
-        ctx2.font = '9px JetBrains Mono, monospace';
-        ctx2.fillText('#TRK-8812 [PERSON 0.94]', bx, by - 5);
-        ctx2.fillStyle = '#64748b';
-        ctx2.fillText(`SPEED: ${(1.2 + Math.sin(tick * 0.1) * 0.2).toFixed(1)} m/s`, bx, by + 122);
-      }
-
-      // Feed CH-03 (Loading Dock)
-      if (c3) {
-        const ctx3 = c3.getContext('2d');
-        const w = c3.width, h = c3.height;
-        ctx3.fillStyle = '#080d17';
-        ctx3.fillRect(0, 0, w, h);
-
-        ctx3.strokeStyle = 'rgba(16, 185, 129, 0.4)';
-        ctx3.lineWidth = 1.5;
-        ctx3.strokeRect(60, 50, 360, 220);
-        ctx3.fillStyle = 'rgba(16, 185, 129, 0.05)';
-        ctx3.fillRect(60, 50, 360, 220);
-        ctx3.fillStyle = '#10b981';
-        ctx3.font = '10px JetBrains Mono, monospace';
-        ctx3.fillText('DOCK-BAY-A [AUTHORIZED PARKING]', 66, 68);
-
-        const vx = 180 + Math.cos(tick * 0.02) * 20;
-        const vy = 120;
-        ctx3.strokeStyle = '#f59e0b';
-        ctx3.lineWidth = 1.8;
-        ctx3.strokeRect(vx, vy, 130, 85);
-        ctx3.fillStyle = '#f59e0b';
-        ctx3.font = '9px JetBrains Mono, monospace';
-        ctx3.fillText('#VEH-402 [DELIVERY VAN 0.89]', vx, vy - 6);
-      }
-
-      // Feed CH-04 (Restricted Core Vault - Night Vision)
-      if (c4) {
-        const ctx4 = c4.getContext('2d');
-        const w = c4.width, h = c4.height;
-        ctx4.fillStyle = '#020b05';
-        ctx4.fillRect(0, 0, w, h);
-
-        ctx4.fillStyle = 'rgba(34, 197, 94, 0.08)';
-        for (let i = 0; i < 70; i++) {
-          ctx4.fillRect(Math.random() * w, Math.random() * h, 2, 2);
-        }
-
-        ctx4.strokeStyle = '#ff1744';
-        ctx4.lineWidth = 1.5;
-        ctx4.setLineDash([4, 4]);
-        ctx4.beginPath();
-        ctx4.moveTo(0, 210);
-        ctx4.lineTo(w, 210);
-        ctx4.stroke();
-        ctx4.setLineDash([]);
-
-        ctx4.fillStyle = '#ff1744';
-        ctx4.font = '10px JetBrains Mono, monospace';
-        ctx4.fillText('LASER TRIPWIRE ARMED [SECURE]', 14, 204);
-
-        ctx4.fillStyle = '#22c55e';
-        ctx4.font = '10px JetBrains Mono, monospace';
-        ctx4.fillText('SECTOR 4: ZERO MOTION DETECTED', 14, 30);
-      }
-    }, 150);
+    // Wire up "Configure RTSP" buttons on offline feeds
+    document.querySelectorAll('.nav-to-cameras').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetView = btn.dataset.navView || 'monitoring';
+        setView(targetView);
+      });
+    });
   }
 
   (async () => {
     applyTheme(themePreference);
-    $('dashboard-shell').classList.toggle('sidebar-collapsed', sidebarCollapsed);
-    $('sidebar-collapse').textContent = sidebarCollapsed ? '›' : '‹';
-    $('sidebar-collapse').setAttribute('aria-pressed', String(sidebarCollapsed));
-    $('sidebar-collapse').setAttribute('aria-label', sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    sidebarCollapsed = false;
+    $('dashboard-shell').classList.remove('sidebar-collapsed');
+    $('sidebar-collapse').textContent = '‹';
+    $('sidebar-collapse').setAttribute('aria-pressed', 'false');
+    $('sidebar-collapse').setAttribute('aria-label', 'Collapse sidebar');
     setAccountUi({ username: 'Local workspace', role: 'Development' });
     setAccessMode('unknown');
     $('camera-preview').hidden = true;

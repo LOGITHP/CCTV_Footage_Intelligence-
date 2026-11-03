@@ -222,6 +222,17 @@ class ChatRequest(BaseModel):
     agent_mode: Literal["forensic", "live", "auto"] = "auto"
 
 
+class TelegramConfigurationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+
+    bot_token: str = Field(min_length=10, max_length=512)
+    chat_id: str = Field(min_length=1, max_length=128)
+    allowed_chat_ids: list[str] = Field(default_factory=list, max_length=100)
+    webhook_secret: str = Field(min_length=16, max_length=256)
+    api_base_url: str = Field(default="https://api.telegram.org", min_length=8, max_length=512)
+    webhook_url: str | None = Field(default=None, max_length=2048)
+
+
 class AlertRuleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=120)
