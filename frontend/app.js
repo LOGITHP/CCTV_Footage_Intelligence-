@@ -443,8 +443,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bot_token: $('telegram-bot-token').value.trim(),
-          chat_id: $('telegram-chat-id').value.trim(),
+          bot_token: $('telegram-bot-token').value.replace(/\s+/g, ''),
+          chat_id: $('telegram-chat-id').value.replace(/\s+/g, ''),
           allowed_chat_ids: allowed,
           webhook_secret: $('telegram-webhook-secret').value,
           webhook_url: $('telegram-webhook-url').value.trim() || null,
@@ -678,10 +678,10 @@
     }
   }
 
-  async function uploadVideo(file) {
+  async function uploadVideo(file, category = 'uploads') {
     const form = new FormData();
     form.append('file', file, file.name);
-    return request('/api/v1/videos', { method: 'POST', body: form });
+    return request(`/api/v1/videos?category=${encodeURIComponent(category)}`, { method: 'POST', body: form });
   }
 
   function parseZones(id, label) {
@@ -999,7 +999,7 @@
     try {
       if (!blob.size) throw new Error('No video data was captured. Record for a few seconds and try again.');
       const zones = cameraZones();
-      const uploaded = await uploadVideo(new File([blob], filename, { type }));
+      const uploaded = await uploadVideo(new File([blob], filename, { type }), 'live_streams');
       currentVideoId = uploaded.video_id;
       let body = await processVideo(currentVideoId, { zones });
       body = await waitForJob(body, (status) => {

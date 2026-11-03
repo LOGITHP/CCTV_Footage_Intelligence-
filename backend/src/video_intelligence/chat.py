@@ -358,6 +358,16 @@ def answer_live_query(
     cameras = store.list_cameras() if hasattr(store, "list_cameras") else []
     alerts = store.list_alerts() if hasattr(store, "list_alerts") else []
     rules = store.list_alert_rules() if hasattr(store, "list_alert_rules") else []
+    reports = (
+        store.list_monitoring_reports(camera_id=camera_id, session_id=session_id)
+        if hasattr(store, "list_monitoring_reports")
+        else []
+    )
+    anomalies = (
+        store.list_monitoring_anomalies(camera_id=camera_id, session_id=session_id)
+        if hasattr(store, "list_monitoring_anomalies")
+        else []
+    )
 
     if not camera_id:
         cam_match = re.search(r"\b(cam(?:era)?[-_\s]*\w+|ch[-_\s]*\d+)\b", message, re.IGNORECASE)
@@ -374,6 +384,14 @@ def answer_live_query(
     scoped_cameras = [c for c in cameras if not camera_id or c.get("camera_id") == camera_id]
     scoped_alerts = [a for a in active_alerts if not camera_id or a.get("camera_id") == camera_id]
     scoped_rules = [r for r in rules if not camera_id or r.get("camera_id") == camera_id or not r.get("camera_id")]
+    scoped_reports = [
+        r for r in reports
+        if not session_id or r.get("session_id") == session_id
+    ]
+    scoped_anomalies = [
+        a for a in anomalies
+        if not session_id or a.get("session_id") == session_id
+    ]
 
     citations = []
     for c in scoped_cameras:
@@ -405,11 +423,52 @@ def answer_live_query(
             "object_label": r.get("object_label", "all"),
             "enabled": r.get("enabled", True),
         })
+    for report in sorted(scoped_reports, key=lambda item: str(item.get("created_at", "")), reverse=True)[:8]:
+        citations.append({
+            "citation_type": "live_monitoring_report",
+            "camera_id": report.get("camera_id"),
+            "session_id": report.get("session_id"),
+            "status": report.get("status"),
+            "frame_count": report.get("frame_count", 0),
+            "event_count": report.get("event_count", 0),
+            "latest_media_timestamp_seconds": report.get("latest_media_timestamp_seconds"),
+            "frames_dropped": report.get("frames_dropped", 0),
+            "reconnect_count": report.get("reconnect_count", 0),
+        })
+    for anomaly in scoped_anomalies[:10]:
+        citations.append({
+            "citation_type": "live_anomaly",
+            "anomaly_id": anomaly.get("anomaly_id"),
+            "camera_id": anomaly.get("camera_id"),
+            "session_id": anomaly.get("session_id"),
+            "anomaly_type": anomaly.get("anomaly_type"),
+            "reason": anomaly.get("reason"),
+            "severity": anomaly.get("severity"),
+            "timestamp_seconds": anomaly.get("timestamp_seconds"),
+        })
+
+    live_tracks: list[dict[str, Any]] = []
+    if hasattr(store, "search_tracks"):
+        for report in scoped_reports:
+            scope = report.get("track_scope")
+            if scope:
+                live_tracks.extend(store.search_tracks(track_scope=scope)[-20:])
+    for track in live_tracks[-20:]:
+        citations.append({
+            "citation_type": "live_track_observation",
+            "camera_id": camera_id,
+            "track_id": track.get("track_id"),
+            "object_label": track.get("object_label", "object"),
+            "timestamp_seconds": track.get("timestamp_seconds"),
+            "track_scope": track.get("track_scope"),
+        })
 
     total_cams = len(cameras)
     online_cams = sum(1 for c in cameras if c.get("enabled", True))
     offline_cams = total_cams - online_cams
     total_breaches = len(active_alerts)
+    active_anomalies = len(scoped_anomalies)
+    running_reports = sum(1 for report in scoped_reports if report.get("status") in {"running", "starting", "degraded"})
 
     cam_rows = []
     for idx, c in enumerate(scoped_cameras, 1):
@@ -427,6 +486,7 @@ def answer_live_query(
         f"### 1. Live Surveillance Fleet Overview\n"
         f"- **Camera Matrix Status**: **{online_cams} Active Stream(s)** online out of {total_cams} registered ({offline_cams} offline/disabled).\n"
         f"- **Perimeter Breach Status**: **{total_breaches} Active Intrusion Alert(s)** requiring operator attention.\n"
+        f"- **Live Processing Feed**: **{running_reports} stream(s)** currently processing; **{active_anomalies} unusual-activity record(s)** are available to the agent.\n"
         f"- **Armed Tripwires**: {len(rules)} security rules actively enforcing boundary containment.\n\n"
         f"### 2. Monitored Camera Streams\n"
         f"| Channel ID | Camera Name | Health Status | RTSP Source | Boundary Zones |\n"
@@ -459,4 +519,7 @@ def answer_live_query(
         "cameras": scoped_cameras,
         "active_alerts": scoped_alerts,
         "rules": scoped_rules,
+        "monitoring_reports": scoped_reports,
+        "anomalies": scoped_anomalies,
+        "live_tracks": live_tracks[-20:],
     }

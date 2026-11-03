@@ -281,12 +281,21 @@ class InfrastructureSettings:
             task_default_queue=_first(env, "CELERY_TASK_DEFAULT_QUEUE") or "video-processing",
         )
 
-        notification_mode = (_first(env, "NOTIFICATION_MODE") or "noop").lower()
+        notification_mode = (
+            _first(env, "NOTIFICATION_MODE")
+            or str(telegram_file.get("NOTIFICATION_MODE") or "noop")
+        ).lower()
         if notification_mode not in {"noop", "local", "webhook", "email", "telegram", "multi"}:
             raise ValueError("NOTIFICATION_MODE must be noop, local, webhook, email, telegram, or multi")
         notifications = NotificationSettings(
             mode=notification_mode,
-            channels=_csv(env, "NOTIFICATION_CHANNELS"),
+            channels=_csv(
+                env,
+                "NOTIFICATION_CHANNELS",
+                tuple(str(item).strip() for item in telegram_file.get("NOTIFICATION_CHANNELS", ()) if str(item).strip())
+                if isinstance(telegram_file.get("NOTIFICATION_CHANNELS"), (list, tuple))
+                else (),
+            ),
             local_path=_first(env, "NOTIFICATION_LOCAL_PATH"),
             webhook_url=_first(env, "NOTIFICATION_WEBHOOK_URL"),
             webhook_timeout_seconds=_float(env, "NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS", 5.0, minimum=0.1),

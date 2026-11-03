@@ -39,6 +39,11 @@ anomalies, events, and latest recording evidence. Only chat IDs listed in
 `TELEGRAM_ALLOWED_CHAT_IDS` (or the configured default chat ID) may receive
 answers.
 
+The same values can be entered from **Configuration → Telegram Alerts** in the
+dashboard. The token and webhook secret are written to the ignored runtime
+file `data/telegram_config.json`; they are never returned by the status API.
+For a separate public edge deployment, see `telegram_bot_server/README.md`.
+
 - **Meta Muse Spark Open LLM**:
   - Connects to Baseten's managed inference gateway at `https://inference.baseten.co/v1/chat/completions`.
   - Configured with official hackathon model `meta-models/muse-spark-open-1026`; provide the Baseten key through `BASETEN_API_KEY`.

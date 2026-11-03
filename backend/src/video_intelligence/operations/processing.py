@@ -45,9 +45,10 @@ class ProcessingOptions:
             zone if isinstance(zone, Zone) else Zone(str(zone["zone_id"]), tuple(tuple(point) for point in zone["polygon"]))
             for zone in raw_zones
         )
+        raw_stride = data.get("every") if data.get("every") is not None else data.get("stride", 1)
         options = cls(
             zones=zones,
-            every=int(data.get("every", 1)),
+            every=int(raw_stride),
             threshold=int(data.get("threshold", 200)),
             min_area=int(data.get("min_area", 25)),
             clip_padding=float(data.get("clip_padding", 5.0)),

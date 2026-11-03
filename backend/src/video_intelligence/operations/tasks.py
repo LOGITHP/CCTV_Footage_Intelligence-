@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import os
 from typing import Any, Callable, Mapping
 
 from ..infrastructure.config import load_settings
@@ -181,11 +182,18 @@ def _default_camera_stream_worker() -> CameraStreamMonitoringWorker:
     settings = load_settings()
     store = build_store(settings)
     outbox = OutboxStore(settings.database.url or settings.database.sqlite_path)
+    notification_handler = None
+    if os.getenv("LIVE_ALERT_DELIVERY", "inline").strip().lower() in {"1", "true", "yes", "on", "inline"}:
+        notification_handler = build_notification_worker(
+            settings.notifications,
+            metrics=build_metrics(enabled=settings.metrics.enabled, namespace=settings.metrics.namespace),
+        ).deliver
     return CameraStreamMonitoringWorker(
         store,
         outbox=outbox,
         notification_channels=configured_notification_channels(settings.notifications),
         worker_mode="celery-live",
+        notification_handler=notification_handler,
     )
 
 

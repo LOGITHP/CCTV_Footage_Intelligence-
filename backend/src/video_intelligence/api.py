@@ -36,7 +36,7 @@ def _load_dotenv_if_present() -> None:
 
 _load_dotenv_if_present()
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, Depends, status
+from fastapi import FastAPI, HTTPException, Request, UploadFile, Depends, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -64,7 +64,7 @@ from .rate_limit import RateLimiter, RateLimitPolicy, client_key
 from .security_config import load_security_settings
 from .signed_evidence import EvidenceAccessDenied, EvidenceTokenError, EvidenceTokenSigner
 from .operations.metrics import PrometheusMetrics, build_metrics
-from .operations.notifications import configured_notification_channels, notification_payloads
+from .operations.notifications import build_notification_worker, configured_notification_channels, notification_payloads
 from .operations.monitoring import CameraMonitoringWorker
 from .operations.processing import default_pipeline_runner
 from .operations.streaming import CameraStreamMonitoringWorker
@@ -462,11 +462,18 @@ def _camera_stream_worker() -> CameraStreamMonitoringWorker:
         if outbox is None:
             outbox = OutboxStore(database, metrics=metrics)
             _outbox_stores[database] = outbox
+    notification_handler = None
+    if os.getenv("LIVE_ALERT_DELIVERY", "inline").strip().lower() in {"1", "true", "yes", "on", "inline"}:
+        notification_handler = build_notification_worker(
+            settings.notifications,
+            metrics=metrics,
+        ).deliver
     return CameraStreamMonitoringWorker(
         store,
         outbox=outbox,
         notification_channels=configured_notification_channels(settings.notifications),
         worker_mode="inline-live",
+        notification_handler=notification_handler,
     )
 
 
@@ -506,6 +513,9 @@ def resolve_media_path(video: dict) -> Path:
     fallback_names = {raw_path.name, PureWindowsPath(raw_text).name}
     candidates = [raw_path]
     candidates.extend(media_root / name for name in fallback_names if name)
+    candidates.extend(media_root / "uploads" / name for name in fallback_names if name)
+    candidates.extend(media_root / "live_streams" / name for name in fallback_names if name)
+    candidates.extend(media_root / "evidence" / name for name in fallback_names if name)
     for candidate in candidates:
         try:
             resolved = candidate.resolve()
@@ -760,6 +770,45 @@ def monitoring_anomalies(camera_id: str | None = None, session_id: str | None = 
     return {"anomalies": store.list_monitoring_anomalies(camera_id=camera_id, session_id=session_id)}
 
 
+@app.get("/api/v1/cameras/{camera_id}/live-context")
+def live_context(
+    camera_id: str,
+    session_id: str | None = None,
+    principal: UserPrincipal = Depends(app_permission(Permission.CAMERA_READ)),
+) -> dict[str, Any]:
+    """Return the bounded live telemetry window used by the live agent."""
+
+    if store.get_camera(camera_id) is None:
+        raise HTTPException(status_code=404, detail="camera not found")
+    reports = store.list_monitoring_reports(camera_id=camera_id, session_id=session_id)
+    latest = reports[-1] if reports else None
+    resolved_session = session_id or (latest.get("session_id") if latest else None)
+    anomalies = store.list_monitoring_anomalies(camera_id=camera_id, session_id=resolved_session)
+    alerts = [
+        alert for alert in store.list_alerts()
+        if not resolved_session or alert.get("session_id") in {None, resolved_session}
+    ]
+    tracks: list[dict[str, Any]] = []
+    if latest and latest.get("track_scope"):
+        tracks = store.search_tracks(track_scope=latest["track_scope"])[-50:]
+    return {
+        "camera_id": camera_id,
+        "session_id": resolved_session,
+        "status": latest.get("status") if latest else "not_running",
+        "report": latest,
+        "reports": reports[-10:],
+        "anomalies": anomalies[:20],
+        "active_alerts": [item for item in alerts if item.get("status") in {"open", "active", "triggered", "unacknowledged"}][:20],
+        "tracks": tracks,
+        "agent_feed": {
+            "frames": latest.get("frame_count", 0) if latest else 0,
+            "events": latest.get("event_count", 0) if latest else 0,
+            "latest_media_timestamp_seconds": latest.get("latest_media_timestamp_seconds") if latest else None,
+            "anomaly_count": len(anomalies),
+        },
+    }
+
+
 @app.post("/api/v1/auth/register", status_code=201)
 def register(request: RegisterRequest, principal: UserPrincipal | None = Depends(optional_principal)) -> dict:
     allow_public_signup = os.getenv("ALLOW_PUBLIC_SIGNUP", "true").lower() in {"1", "true", "yes"}
@@ -805,14 +854,21 @@ def audit_logs(limit: int = 100, principal: UserPrincipal = Depends(app_permissi
 
 
 @app.post("/api/v1/videos", status_code=201)
-async def upload_video(file: UploadFile, principal: UserPrincipal = Depends(app_permission(Permission.VIDEO_UPLOAD))) -> dict:
+async def upload_video(
+    file: UploadFile,
+    category: str = Query("uploads"),
+    principal: UserPrincipal = Depends(app_permission(Permission.VIDEO_UPLOAD)),
+) -> dict:
     if not file.filename:
         raise HTTPException(status_code=400, detail="filename is required")
     if file.content_type and not (file.content_type.startswith("video/") or file.content_type == "application/octet-stream"):
         raise HTTPException(status_code=415, detail="only video uploads are supported")
     video_id = str(uuid4())
-    media_root.mkdir(parents=True, exist_ok=True)
-    destination = media_root / f"{video_id}-{Path(file.filename or 'upload.bin').name}"
+    safe_name = Path(file.filename or "upload.bin").name
+    cat = "live_streams" if category == "live_streams" or safe_name.startswith(("cctv1-", "cam-", "live-")) else "uploads"
+    target_dir = media_root / cat
+    target_dir.mkdir(parents=True, exist_ok=True)
+    destination = target_dir / f"{video_id}-{safe_name}"
     size = 0
     digest = hashlib.sha256()
     try:
@@ -825,6 +881,11 @@ async def upload_video(file: UploadFile, principal: UserPrincipal = Depends(app_
                 digest.update(chunk)
     except HTTPException:
         destination.unlink(missing_ok=True)
+        if target_dir != media_root:
+            try:
+                target_dir.rmdir()
+            except OSError:
+                pass
         raise
     object_key = None
     settings = load_settings()
@@ -1254,12 +1315,16 @@ def save_telegram_config(
         parsed_webhook = urlparse(request.webhook_url)
         if parsed_webhook.scheme != "https" or not parsed_webhook.netloc:
             raise HTTPException(status_code=422, detail="webhook_url must be an absolute HTTPS URL")
+    cleaned_bot_token = re.sub(r"\s+", "", str(request.bot_token))
+    cleaned_chat_id = str(request.chat_id).strip()
     allowed = [str(value).strip() for value in request.allowed_chat_ids if str(value).strip()]
-    if request.chat_id not in allowed:
-        allowed.insert(0, request.chat_id)
+    if cleaned_chat_id not in allowed:
+        allowed.insert(0, cleaned_chat_id)
     document = {
-        "TELEGRAM_BOT_TOKEN": request.bot_token,
-        "TELEGRAM_CHAT_ID": request.chat_id,
+        "TELEGRAM_BOT_TOKEN": cleaned_bot_token,
+        "NOTIFICATION_MODE": "telegram",
+        "NOTIFICATION_CHANNELS": ["telegram"],
+        "TELEGRAM_CHAT_ID": cleaned_chat_id,
         "TELEGRAM_ALLOWED_CHAT_IDS": allowed,
         "TELEGRAM_WEBHOOK_SECRET": request.webhook_secret,
         "TELEGRAM_API_BASE_URL": request.api_base_url.rstrip("/"),
@@ -1279,7 +1344,7 @@ def save_telegram_config(
 
         try:
             TelegramBotClient(
-                request.bot_token,
+                cleaned_bot_token,
                 api_base_url=request.api_base_url,
                 timeout_seconds=load_settings().notifications.webhook_timeout_seconds,
             ).set_webhook(request.webhook_url, secret_token=request.webhook_secret)

@@ -32,6 +32,7 @@ from .processing import ProcessingOptions
 Clock = Callable[[], datetime | str]
 CaptureFactory = Callable[[str | int], Any]
 ComponentFactory = Callable[[ProcessingOptions, str], tuple[Detector, Tracker]]
+NotificationHandler = Callable[[Mapping[str, Any]], Any]
 
 
 def _now() -> str:
@@ -129,6 +130,8 @@ class CameraStreamMonitoringWorker:
         reconnect_attempts: int = 3,
         reconnect_backoff_seconds: float = 0.25,
         worker_mode: str = "inline-live",
+        notification_handler: NotificationHandler | None = None,
+        notification_retry_seconds: int = 15,
     ) -> None:
         self.store = store
         self.outbox = outbox
@@ -141,6 +144,8 @@ class CameraStreamMonitoringWorker:
         self.reconnect_attempts = max(0, int(reconnect_attempts))
         self.reconnect_backoff_seconds = max(0.0, float(reconnect_backoff_seconds))
         self.worker_mode = worker_mode
+        self.notification_handler = notification_handler
+        self.notification_retry_seconds = max(1, int(notification_retry_seconds))
 
     @classmethod
     def _lock_for(cls, store: Any, camera_id: str, session_id: str) -> RLock:
@@ -182,7 +187,7 @@ class CameraStreamMonitoringWorker:
         if self.outbox is None:
             return
         for _channel, payload in notification_payloads(alerts, video_id=video_id, channels=self.notification_channels):
-            self.outbox.enqueue(
+            record = self.outbox.enqueue(
                 "notification.send",
                 payload,
                 aggregate_type="alert",
@@ -190,8 +195,9 @@ class CameraStreamMonitoringWorker:
                 dedupe_key=f"notification:{payload['notification_id']}",
                 created_at=created_at,
             )
+            self._deliver_inline(record)
         for _channel, payload in anomaly_notification_payloads(anomalies, channels=self.notification_channels):
-            self.outbox.enqueue(
+            record = self.outbox.enqueue(
                 "notification.send",
                 payload,
                 aggregate_type="anomaly",
@@ -199,6 +205,23 @@ class CameraStreamMonitoringWorker:
                 dedupe_key=f"notification:{payload['notification_id']}",
                 created_at=created_at,
             )
+            self._deliver_inline(record)
+
+    def _deliver_inline(self, record: Mapping[str, Any]) -> None:
+        """Deliver live alerts immediately while retaining retryable outbox state."""
+
+        if self.notification_handler is None:
+            return
+        try:
+            self.notification_handler(record)
+        except Exception as error:
+            self.outbox.mark_failed(
+                str(record["message_id"]),
+                str(error),
+                retry_after_seconds=self.notification_retry_seconds,
+            )
+        else:
+            self.outbox.mark_delivered(str(record["message_id"]))
 
     def run(
         self,

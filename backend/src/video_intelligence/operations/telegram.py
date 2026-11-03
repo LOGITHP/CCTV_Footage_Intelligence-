@@ -35,12 +35,13 @@ class TelegramBotClient:
         timeout_seconds: float = 10.0,
         request: TelegramRequest | None = None,
     ) -> None:
-        if not bot_token.strip():
+        cleaned_token = re.sub(r"\s+", "", str(bot_token))
+        if not cleaned_token:
             raise ValueError("Telegram bot token is required")
         parsed = urlparse(api_base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("Telegram API base URL must be an absolute http(s) URL")
-        self._token = bot_token.strip()
+        self._token = cleaned_token
         self._base_url = api_base_url.rstrip("/")
         self._timeout = timeout_seconds
         self._request = request or _default_request
