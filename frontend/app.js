@@ -56,7 +56,7 @@
     const toggle = $('theme-toggle');
     if (toggle) {
       const dark = resolvedTheme(themePreference) === 'dark';
-      toggle.textContent = dark ? '☀' : '☾';
+      toggle.innerHTML = dark ? '&#9728;' : '&#9790;';
       toggle.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
       toggle.title = dark ? 'Switch to light theme' : 'Switch to dark theme';
     }
@@ -156,8 +156,16 @@
     closeAccountMenu();
     document.querySelectorAll('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
     document.querySelectorAll('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view));
-    const titles = { overview: 'Overview', camera: 'CCTV-1 camera', monitoring: 'Monitoring', evidence: 'Evidence workbench', assistant: 'Grounded assistant', alerts: 'Alerts & rules', settings: 'Settings & capabilities' };
-    $('view-title').textContent = titles[view] || 'Overview';
+    const titles = {
+      overview: 'Operations Hub',
+      camera: 'Live Video Matrix',
+      monitoring: 'Camera Provisioning',
+      evidence: 'Forensic Workbench',
+      assistant: 'AI Copilot (LangGraph)',
+      alerts: 'Security Rules',
+      settings: 'Console Configuration & Endpoints',
+    };
+    $('view-title').textContent = titles[view] || 'Operations Hub';
     if (view === 'monitoring') loadMonitoring();
     if (view === 'evidence') loadVideoArchive();
   }
@@ -1526,14 +1534,25 @@
   $('account-settings').addEventListener('click', () => setView('settings'));
   $('account-menu-button').addEventListener('click', toggleAccountMenu);
   $('new-capture').addEventListener('click', startNewCapture);
-  $('sidebar-collapse').addEventListener('click', () => {
-    sidebarCollapsed = !sidebarCollapsed;
+  function updateSidebarState(collapsed) {
+    sidebarCollapsed = collapsed;
     localStorage.setItem('video-intelligence-sidebar', sidebarCollapsed ? 'collapsed' : 'expanded');
     $('dashboard-shell').classList.toggle('sidebar-collapsed', sidebarCollapsed);
     $('sidebar-collapse').textContent = sidebarCollapsed ? '›' : '‹';
     $('sidebar-collapse').setAttribute('aria-pressed', String(sidebarCollapsed));
     $('sidebar-collapse').setAttribute('aria-label', sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    $('sidebar-collapse').title = sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  }
+
+  $('sidebar-collapse').addEventListener('click', () => {
+    updateSidebarState(!sidebarCollapsed);
   });
+  const brandMarkEl = document.querySelector('.sidebar-brand .brand-mark');
+  if (brandMarkEl) {
+    brandMarkEl.addEventListener('click', () => {
+      if (sidebarCollapsed) updateSidebarState(false);
+    });
+  }
   $('theme-toggle').addEventListener('click', toggleTheme);
   document.querySelectorAll('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => applyTheme(button.dataset.themeChoice)));
   document.querySelectorAll('[data-chat-suggestion]').forEach((button) => button.addEventListener('click', selectChatSuggestion));
@@ -1604,6 +1623,7 @@
         if (matrixContainer) {
           matrixContainer.className = `vms-matrix-grid grid-${grid}`;
         }
+        setView('camera');
       });
     });
 
