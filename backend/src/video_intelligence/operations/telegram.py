@@ -64,14 +64,17 @@ class TelegramBotClient:
             raise RuntimeError(str(detail))
         return response
 
-    def send_message(self, chat_id: str, text: str) -> dict[str, Any]:
+    def send_message(self, chat_id: str, text: str, *, parse_mode: str | None = None) -> dict[str, Any]:
         if not str(chat_id).strip():
             raise ValueError("Telegram chat ID is required")
         if not text.strip():
             text = " "
         results = []
         for start in range(0, len(text), 4096):
-            results.append(self._call("sendMessage", {"chat_id": str(chat_id), "text": text[start : start + 4096]}))
+            payload = {"chat_id": str(chat_id), "text": text[start : start + 4096]}
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+            results.append(self._call("sendMessage", payload))
         return results[-1] if results else self._call("sendMessage", {"chat_id": str(chat_id), "text": " "})
 
     def set_webhook(self, url: str, *, secret_token: str | None = None) -> dict[str, Any]:

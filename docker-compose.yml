@@ -82,6 +82,29 @@ services:
     restart: unless-stopped
 
   # Optional local MinIO container profile (requires Docker Hub login or authenticated registry)
+  # Standalone Telegram Alert & Bot Dispatch Service
+  telegram-bot-server:
+    build:
+      context: .
+      dockerfile: telegram_bot_server/Dockerfile
+    image: vi-sentry-telegram:latest
+    container_name: video-intelligence-telegram
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - TELEGRAM_ALLOWED_CHAT_IDS=${TELEGRAM_ALLOWED_CHAT_IDS:-}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+      - TELEGRAM_ALERT_SHARED_SECRET=${TELEGRAM_ALERT_SHARED_SECRET:-}
+      - TELEGRAM_API_BASE_URL=${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
+      - VIDEO_INTELLIGENCE_API_URL=http://video-intelligence:8000
+      - VIDEO_INTELLIGENCE_API_TOKEN=${VIDEO_INTELLIGENCE_API_TOKEN:-}
+    depends_on:
+      video-intelligence:
+        condition: service_healthy
+
   minio:
     image: minio/minio:latest
     container_name: video-intelligence-minio
