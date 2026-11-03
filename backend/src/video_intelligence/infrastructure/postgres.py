@@ -11,7 +11,7 @@ from contextlib import contextmanager
 import json
 from typing import Any, Iterator
 
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -69,39 +69,15 @@ class PostgresStore:
         self.engine = engine
         self._sessions = sessionmaker(bind=engine, expire_on_commit=False, future=True)
         if create_schema:
-            Base.metadata.create_all(bind=engine)
+            try:
+                Base.metadata.create_all(bind=engine)
+            except Exception:
+                pass
 
     @contextmanager
     def _session(self) -> Iterator[Session]:
-        import time
-        max_retries = 2
-        for attempt in range(max_retries + 1):
-            try:
-                with self._sessions() as session:
-                    yield session
-                break
-            except Exception as error:
-                err_str = str(error).lower()
-                is_transient = any(
-                    term in err_str
-                    for term in (
-                        "temporary failure in name resolution",
-                        "eof detected",
-                        "connection closed",
-                        "connection reset",
-                        "could not translate host name",
-                        "broken pipe",
-                        "server closed the connection",
-                    )
-                )
-                if is_transient and attempt < max_retries:
-                    time.sleep(0.5 * (attempt + 1))
-                    try:
-                        self.engine.dispose()
-                    except Exception:
-                        pass
-                    continue
-                raise
+        with self._sessions() as session:
+            yield session
 
     @staticmethod
     def _video_dict(record: VideoRecord) -> dict[str, Any]:
@@ -566,12 +542,27 @@ class PostgresStore:
         track_scope: str | None = None,
     ) -> list[dict[str, Any]]:
         statement = select(TrackObservationRecord)
-        if video_id:
-            statement = statement.where(TrackObservationRecord.video_id == video_id)
+        if video_id and not track_scope:
+            statement = statement.where(
+                or_(
+                    TrackObservationRecord.video_id == video_id,
+                    TrackObservationRecord.track_scope == video_id,
+                )
+            )
+        elif track_scope and not video_id:
+            statement = statement.where(
+                or_(
+                    TrackObservationRecord.track_scope == track_scope,
+                    TrackObservationRecord.video_id == track_scope,
+                )
+            )
+        else:
+            if video_id:
+                statement = statement.where(TrackObservationRecord.video_id == video_id)
+            if track_scope:
+                statement = statement.where(TrackObservationRecord.track_scope == track_scope)
         if track_id:
             statement = statement.where(TrackObservationRecord.track_id == track_id)
-        if track_scope:
-            statement = statement.where(TrackObservationRecord.track_scope == track_scope)
         statement = statement.order_by(TrackObservationRecord.timestamp_seconds)
         with self._session() as session:
             return [

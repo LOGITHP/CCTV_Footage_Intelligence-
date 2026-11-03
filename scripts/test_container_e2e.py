@@ -1,13 +1,18 @@
 """End-to-end integration test against running Docker container."""
 
 import json
+import os
 import urllib.error
 import urllib.request
 
 
 def run_e2e():
     print("--- [1/5] Authenticating with JWT ---")
-    login_data = json.dumps({"username": "admin", "password": "adminpassword123"}).encode()
+    username = os.getenv("ADMIN_USERNAME", "admin")
+    password = os.getenv("ADMIN_PASSWORD", "").strip()
+    if not password:
+        raise RuntimeError("ADMIN_PASSWORD must be set for the container E2E test")
+    login_data = json.dumps({"username": username, "password": password}).encode()
     req = urllib.request.Request(
         "http://localhost:8000/api/v1/auth/login",
         data=login_data,

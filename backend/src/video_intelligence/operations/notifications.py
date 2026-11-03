@@ -196,6 +196,88 @@ class EmailNotifier:
         return DeliveryResult(message.notification_id, self.name, "delivered", email["To"])
 
 
+TelegramSender = Callable[[str, bytes, Mapping[str, str], float], tuple[int, bytes] | int]
+
+
+def _default_telegram_sender(
+    url: str, body: bytes, headers: Mapping[str, str], timeout: float
+) -> tuple[int, bytes]:
+    request = Request(url, data=body, headers=dict(headers), method="POST")
+    with urlopen(request, timeout=timeout) as response:  # noqa: S310 - URL is explicit configuration
+        return int(response.status), response.read()
+
+
+class TelegramNotifier:
+    """Deliver alert messages through the Telegram Bot API.
+
+    The bot token is never included in a notification payload or delivery
+    result.  A default chat ID is used for detection alerts; inbound webhook
+    replies can provide a per-message recipient through ``NotificationMessage``.
+    """
+
+    name = "telegram"
+    max_message_length = 4096
+
+    def __init__(
+        self,
+        bot_token: str,
+        chat_id: str,
+        *,
+        api_base_url: str = "https://api.telegram.org",
+        timeout_seconds: float = 5.0,
+        sender: TelegramSender | None = None,
+    ) -> None:
+        if not bot_token.strip():
+            raise ValueError("Telegram bot token is required")
+        if not chat_id.strip():
+            raise ValueError("Telegram chat ID is required for alert delivery")
+        parsed = urlparse(api_base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Telegram API base URL must be an absolute http(s) URL")
+        self.bot_token = bot_token.strip()
+        self.default_chat_id = chat_id.strip()
+        self.api_base_url = api_base_url.rstrip("/")
+        self.timeout_seconds = timeout_seconds
+        self.sender = sender or _default_telegram_sender
+
+    def _send_text(self, chat_id: str, text: str) -> None:
+        endpoint = f"{self.api_base_url}/bot{self.bot_token}/sendMessage"
+        for start in range(0, len(text) or 1, self.max_message_length):
+            chunk = text[start : start + self.max_message_length] or " "
+            body = json.dumps({"chat_id": chat_id, "text": chunk}, ensure_ascii=False).encode("utf-8")
+            result = self.sender(
+                endpoint,
+                body,
+                {"Content-Type": "application/json"},
+                self.timeout_seconds,
+            )
+            if isinstance(result, tuple):
+                status_code, response_body = result
+            else:
+                status_code, response_body = result, b""
+            if status_code < 200 or status_code >= 300:
+                raise RuntimeError(f"Telegram API returned HTTP {status_code}")
+            if response_body:
+                try:
+                    response = json.loads(response_body.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise RuntimeError("Telegram API returned invalid JSON") from exc
+                if not isinstance(response, Mapping) or response.get("ok") is not True:
+                    description = response.get("description", "Telegram API rejected the message") if isinstance(response, Mapping) else "Telegram API rejected the message"
+                    raise RuntimeError(str(description))
+
+    def send(self, message: NotificationMessage) -> DeliveryResult:
+        chat_id = (message.recipient or self.default_chat_id).strip()
+        if not chat_id:
+            raise ValueError("Telegram recipient chat ID is required")
+        text = message.body.strip() or message.subject
+        self._send_text(chat_id, text)
+        return DeliveryResult(message.notification_id, self.name, "delivered", chat_id)
+
+
+TelegramChannel = TelegramNotifier
+
+
 # Descriptive aliases for callers that use the channel terminology.
 NoopChannel = NoopNotifier
 LocalChannel = LocalNotifier
@@ -276,6 +358,15 @@ def build_notification_dispatcher(
                 starttls=settings.email_starttls,
                 timeout_seconds=settings.webhook_timeout_seconds,
                 smtp_factory=smtp_factory,
+            )
+        elif normalized == "telegram":
+            if not settings.telegram_bot_token or not settings.telegram_chat_id:
+                raise ValueError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required for Telegram alerts")
+            channels["telegram"] = TelegramNotifier(
+                settings.telegram_bot_token,
+                settings.telegram_chat_id,
+                api_base_url=settings.telegram_api_base_url,
+                timeout_seconds=settings.webhook_timeout_seconds,
             )
     return NotificationDispatcher(channels, metrics=metrics)
 

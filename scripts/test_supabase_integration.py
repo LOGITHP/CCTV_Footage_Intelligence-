@@ -6,7 +6,6 @@ import os
 import sys
 from pathlib import Path
 import urllib.parse
-from sqlalchemy import text
 
 # Add backend/src to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend" / "src"))
@@ -36,13 +35,15 @@ def run_verification():
     _load_env_file()
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        pw = urllib.parse.quote(os.getenv("DB_PASSWORD", "Plogithh@200855"))
-        host = os.getenv("DB_HOST", "db.iprbivrwcicogcjxzylr.supabase.co")
+        password = os.getenv("DB_PASSWORD", "")
+        host = os.getenv("DB_HOST", "").strip()
         port = os.getenv("DB_PORT", "5432")
         user = os.getenv("DB_USER", "postgres")
         db_name = os.getenv("DB_NAME", "postgres")
+        if not host or not password:
+            raise RuntimeError("DATABASE_URL or DB_HOST plus DB_PASSWORD must be configured")
+        pw = urllib.parse.quote(password)
         db_url = f"postgresql+psycopg://{user}:{pw}@{host}:{port}/{db_name}?sslmode=require"
-    
     print("Connecting to Supabase PostgreSQL via PostgresStore...")
     store = PostgresStore(db_url, create_schema=False)
     print("PostgresStore connected successfully.")

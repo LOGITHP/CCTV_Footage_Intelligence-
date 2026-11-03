@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+# dotenv loading intentionally happens before application imports so local
+# credentials/configuration are available during module initialization.
+# ruff: noqa: E402
+
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
+import hmac
+import logging
 import os
 from pathlib import Path, PureWindowsPath
 import threading
@@ -44,7 +50,6 @@ from .cameras import (
     CameraSupervisor,
     camera_track_scope,
 )
-from .chat import answer_query
 from .evidence import create_clip
 from .infrastructure import infrastructure_capabilities
 from .infrastructure.config import load_settings
@@ -62,12 +67,13 @@ from .operations.notifications import configured_notification_channels, notifica
 from .operations.monitoring import CameraMonitoringWorker
 from .operations.processing import default_pipeline_runner
 from .operations.streaming import CameraStreamMonitoringWorker
+from .operations.telegram import TelegramBotService
 from .operations.outbox import OutboxStore
 from .infrastructure.queue import build_dispatcher
 from .operations.tasks import dispatch_camera, dispatch_camera_stream, dispatch_uploaded_video
 from .embedding_index import EmbeddingIndexOrchestrator, EmbeddingIndexingError
 from .infrastructure.vectors import VectorStorageUnavailable
-from .pipeline import BrightBlobDetector, PipelineError, process_video as run_media_pipeline, runtime_capabilities
+from .pipeline import BrightBlobDetector, process_video as run_media_pipeline, runtime_capabilities
 from .model_manifest import ManifestError
 from .schemas import (
     AlertRuleRequest,
@@ -85,6 +91,8 @@ from .schemas import (
 )
 from .semantic import SemanticSearchError, SemanticSearchService
 from .storage import Store
+
+logger = logging.getLogger("video_intelligence")
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
@@ -332,7 +340,7 @@ def enqueue_outbox(
                 dedupe_key=dedupe_key,
             )
         except Exception as inner_exc:
-            return {"topic": topic, "status": "failed", "error": str(exc)}
+            return {"topic": topic, "status": "failed", "error": str(inner_exc)}
 
 
 def enqueue_alert_notifications(alerts: list[dict], *, video_id: str) -> int:
@@ -985,6 +993,10 @@ def process_media(video_id: str, request: MediaProcessRequest, principal: UserPr
             meta_api_key=env_settings.meta_api_key,
             meta_api_url=env_settings.meta_api_url,
             meta_model=env_settings.meta_model,
+            baseten_api_key=env_settings.baseten_api_key,
+            baseten_sam_endpoint=env_settings.baseten_sam_endpoint,
+            baseten_siglip_endpoint=env_settings.baseten_siglip_endpoint,
+            baseten_bge_endpoint=env_settings.baseten_bge_endpoint,
             model_cache=env_settings.model_cache,
         )
         detector = build_detector(settings)
@@ -993,7 +1005,7 @@ def process_media(video_id: str, request: MediaProcessRequest, principal: UserPr
             source_path,
             zones,
             every=request.every,
-            detector=detector if request.model_profile in {"yolo", "sam", "sam3.1", "sam2"} else BrightBlobDetector(threshold=request.threshold, min_area=request.min_area),
+            detector=detector if request.model_profile in {"sam", "sam3.1", "sam2"} else BrightBlobDetector(threshold=request.threshold, min_area=request.min_area),
             tracker=tracker,
             device=request.device,
             track_scope=track_scope,
@@ -1100,8 +1112,8 @@ def tracks(video_id: str, track_id: str | None = None, track_scope: str | None =
     return {"tracks": store.search_tracks(video_id=video_id, track_id=track_id, track_scope=track_scope)}
 
 
-@app.post("/api/v1/chat")
-def chat(request: ChatRequest, principal: UserPrincipal = Depends(app_permission(Permission.CHAT_USE))) -> dict:
+@app.post("/api/v1/chat/forensic")
+def chat_forensic(request: ChatRequest, principal: UserPrincipal = Depends(app_permission(Permission.CHAT_USE))) -> dict:
     try:
         from .investigation_graph import run_investigation_graph
 
@@ -1132,8 +1144,162 @@ def chat(request: ChatRequest, principal: UserPrincipal = Depends(app_permission
         result["citations"],
         now(),
     )
-    result["matches"] = [public_event(event) for event in result["matches"]]
+    result["matches"] = [public_event(event) for event in result.get("matches", [])]
     return result
+
+
+@app.post("/api/v1/chat/live")
+def chat_live(request: ChatRequest, principal: UserPrincipal = Depends(app_permission(Permission.CHAT_USE))) -> dict:
+    try:
+        from .chat import answer_live_query
+
+        result = answer_live_query(
+            store,
+            request,
+            camera_id=request.camera_id,
+            session_id=request.session_id,
+        )
+    except ModelUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    store.add_chat_message(
+        str(uuid4()),
+        result["conversation_id"],
+        "user",
+        request.message,
+        result["citations"],
+        now(),
+    )
+    store.add_chat_message(
+        str(uuid4()),
+        result["conversation_id"],
+        "assistant",
+        result["answer"],
+        result["citations"],
+        now(),
+    )
+    return result
+
+
+@app.post("/api/v1/chat")
+def chat(request: ChatRequest, principal: UserPrincipal = Depends(app_permission(Permission.CHAT_USE))) -> dict:
+    if request.agent_mode == "live":
+        return chat_live(request, principal)
+    if request.agent_mode == "forensic":
+        return chat_forensic(request, principal)
+    import re
+    is_live = bool(request.camera_id and not request.video_id and not request.session_id) or bool(
+        re.search(r"\b(live|stream|fleet|matrix|active alert|tripwire|camera status|channel)\b", request.message, re.IGNORECASE)
+        and not re.search(r"\b(recording|footage|uploaded|sam-track|video|0\.\d+s)\b", request.message, re.IGNORECASE)
+    )
+    if is_live:
+        return chat_live(request, principal)
+    return chat_forensic(request, principal)
+
+
+@app.post("/api/v1/integrations/telegram/webhook")
+async def telegram_webhook(request: Request) -> dict[str, Any]:
+    """Receive Telegram updates and return grounded answers to authorized chats."""
+
+    settings = load_settings().notifications
+    if not settings.telegram_bot_token or not settings.telegram_webhook_secret:
+        raise HTTPException(status_code=503, detail="Telegram webhook is not configured")
+    supplied_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not hmac.compare_digest(settings.telegram_webhook_secret, supplied_secret):
+        raise HTTPException(status_code=403, detail="invalid Telegram webhook secret")
+    try:
+        update = await request.json()
+    except Exception as error:
+        raise HTTPException(status_code=400, detail="Telegram webhook body must be valid JSON") from error
+    if not isinstance(update, Mapping):
+        raise HTTPException(status_code=400, detail="Telegram webhook body must be a JSON object")
+    try:
+        return TelegramBotService(store, settings).handle_update(update)
+    except ValueError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("Telegram update handling failed")
+        raise HTTPException(status_code=502, detail="Telegram update could not be processed") from error
+
+
+@app.get("/api/v1/storage/summary")
+def get_storage_summary(principal: UserPrincipal = Depends(app_permission(Permission.VIDEO_READ))) -> dict:
+    uploads_dir = media_root / "uploads"
+    live_streams_dir = media_root / "live_streams"
+    evidence_dir = media_root / "evidence"
+
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    live_streams_dir.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    def _dir_stats(d: Path, include_root_files: bool = False) -> dict[str, Any]:
+        items = []
+        total_bytes = 0
+        seen_names = set()
+        paths = list(d.glob("*"))
+        if include_root_files and media_root.exists():
+            for f in media_root.glob("*"):
+                if f.is_file() and f.suffix.lower() in {".mp4", ".avi", ".webm", ".mov", ".mkv"}:
+                    paths.append(f)
+        for p in paths:
+            if p.is_file() and p.name not in seen_names:
+                seen_names.add(p.name)
+                sz = p.stat().st_size
+                mtime = p.stat().st_mtime
+                import datetime
+                dt_str = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                total_bytes += sz
+                items.append({
+                    "name": p.name,
+                    "size_bytes": sz,
+                    "size_mb": round(sz / (1024 * 1024), 2),
+                    "modified_at": dt_str,
+                    "extension": p.suffix.lower(),
+                })
+        items.sort(key=lambda x: x["name"])
+        return {
+            "total_files": len(items),
+            "total_bytes": total_bytes,
+            "total_mb": round(total_bytes / (1024 * 1024), 2),
+            "items": items,
+        }
+
+    return {
+        "uploaded_footage": _dir_stats(uploads_dir, include_root_files=True),
+        "live_streams": _dir_stats(live_streams_dir),
+        "forensic_evidence": _dir_stats(evidence_dir),
+    }
+
+
+@app.delete("/api/v1/storage/{category}/{filename}")
+def delete_storage_item(
+    category: str,
+    filename: str,
+    principal: UserPrincipal = Depends(app_permission(Permission.CAMERA_MANAGE)),
+) -> dict:
+    cat = category.strip().lower()
+    if cat not in {"uploads", "live_streams", "evidence"}:
+        raise HTTPException(status_code=400, detail="Invalid storage category. Must be 'uploads', 'live_streams', or 'evidence'")
+
+    target_dir = media_root / cat
+    safe_filename = Path(filename).name
+    if not safe_filename or safe_filename != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    target_file = target_dir / safe_filename
+    if cat == "uploads" and not target_file.exists():
+        fallback = media_root / safe_filename
+        if fallback.exists() and fallback.is_file():
+            target_file = fallback
+
+    if not target_file.exists() or not target_file.is_file():
+        raise HTTPException(status_code=404, detail=f"File '{safe_filename}' not found in '{cat}'")
+
+    try:
+        target_file.unlink()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {exc}")
+
+    return {"status": "deleted", "category": cat, "filename": safe_filename}
 
 
 @app.post("/api/v1/alerts/rules", status_code=201)
@@ -1235,7 +1401,13 @@ def download_evidence(event_id: str, token: str | None = None, request: Request 
             url = build_object_storage(settings.object_storage).signed_url(str(evidence_key))
         except Exception as error:
             raise HTTPException(status_code=503, detail=f"object storage unavailable: {error}") from error
-        audit("evidence.download", principal=grant.subject, resource_type="event", resource_id=event_id)
+        audit(
+            "evidence.download",
+            principal=principal,
+            resource_type="event",
+            resource_id=event_id,
+            metadata={"grant_subject": grant_subject},
+        )
         return RedirectResponse(url)
     if not evidence_key:
         raise HTTPException(status_code=404, detail="evidence artifact not found")
@@ -1250,7 +1422,13 @@ def download_evidence(event_id: str, token: str | None = None, request: Request 
         raise HTTPException(status_code=404, detail="evidence artifact not found")
     if not resolved.is_file():
         raise HTTPException(status_code=404, detail="evidence artifact not found")
-    audit("evidence.download", principal=grant.subject, resource_type="event", resource_id=event_id)
+    audit(
+        "evidence.download",
+        principal=principal,
+        resource_type="event",
+        resource_id=event_id,
+        metadata={"grant_subject": grant_subject},
+    )
     return FileResponse(resolved, media_type="video/mp4", filename=resolved.name)
 
 

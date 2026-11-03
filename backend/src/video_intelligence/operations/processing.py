@@ -64,10 +64,10 @@ class ProcessingOptions:
             raise ValueError("clip_padding must be non-negative")
         if options.device not in {"cpu", "gpu"}:
             raise ValueError("device must be cpu or gpu")
-        if options.model_profile not in {"baseline", "yolo"}:
-            raise ValueError("model_profile must be baseline or yolo")
-        if options.tracker_profile not in {"centroid", "bytetrack"}:
-            raise ValueError("tracker_profile must be centroid or bytetrack")
+        if options.model_profile not in {"baseline", "sam", "sam3.1", "sam2"}:
+            raise ValueError("model_profile must be baseline or sam")
+        if options.tracker_profile not in {"centroid", "sam", "sam3.1", "sam2"}:
+            raise ValueError("tracker_profile must be centroid or sam")
         if options.track_scope is not None and not options.track_scope:
             raise ValueError("track_scope must not be empty")
         return options
@@ -90,6 +90,10 @@ def default_pipeline_runner(path: str, options: ProcessingOptions) -> PipelineRe
         meta_api_key=model_environment.meta_api_key,
         meta_api_url=model_environment.meta_api_url,
         meta_model=model_environment.meta_model,
+        baseten_api_key=model_environment.baseten_api_key,
+        baseten_sam_endpoint=model_environment.baseten_sam_endpoint,
+        baseten_siglip_endpoint=model_environment.baseten_siglip_endpoint,
+        baseten_bge_endpoint=model_environment.baseten_bge_endpoint,
         model_cache=model_environment.model_cache,
     )
     detector = build_detector(model_settings)

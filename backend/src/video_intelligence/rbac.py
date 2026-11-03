@@ -28,6 +28,9 @@ class Permission(str, Enum):
     CAMERA_READ = "camera:read"
     CAMERA_MANAGE = "camera:manage"
     CAMERA_RUN = "camera:run"
+    # Compatibility permissions used by the storage-management endpoints.
+    CAMERA_WRITE = "camera:write"
+    SYSTEM_MONITOR = "system:monitor"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
@@ -45,6 +48,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
             Permission.CAMERA_READ.value,
             Permission.CAMERA_MANAGE.value,
             Permission.CAMERA_RUN.value,
+            Permission.CAMERA_WRITE.value,
+            Permission.SYSTEM_MONITOR.value,
         }
     ),
     Role.REVIEWER: frozenset(

@@ -105,8 +105,8 @@ class CameraProcessingOptionsRequest(BaseModel):
     min_area: int = Field(default=25, ge=1)
     clip_padding: float = Field(default=5.0, ge=0)
     device: Literal["cpu", "gpu"] = "cpu"
-    model_profile: Literal["baseline", "yolo", "sam", "sam3.1", "sam2"] = "baseline"
-    tracker_profile: Literal["centroid", "bytetrack", "sam", "sam3.1", "sam2"] = "centroid"
+    model_profile: Literal["baseline", "sam", "sam3.1", "sam2"] = "baseline"
+    tracker_profile: Literal["centroid", "sam", "sam3.1", "sam2"] = "centroid"
     track_scope: str | None = Field(default=None, min_length=1, max_length=255)
     baseline_count: float | dict[str, float] | None = None
     count_spike_ratio: float = Field(default=2.0, ge=1.0)
@@ -182,8 +182,8 @@ class MediaProcessRequest(BaseModel):
     min_area: int = Field(default=25, ge=1)
     clip_padding: float = Field(default=5.0, ge=0)
     device: str = Field(default="cpu", pattern="^(cpu|gpu)$")
-    model_profile: str = Field(default="baseline", pattern="^(baseline|yolo|sam|sam3\\.1|sam2)$")
-    tracker_profile: str = Field(default="centroid", pattern="^(centroid|bytetrack|sam|sam3\\.1|sam2)$")
+    model_profile: str = Field(default="baseline", pattern="^(baseline|sam|sam3\\.1|sam2)$")
+    tracker_profile: str = Field(default="centroid", pattern="^(centroid|sam|sam3\\.1|sam2)$")
     track_scope: str | None = Field(default=None, min_length=1)
 
 
@@ -219,6 +219,7 @@ class ChatRequest(BaseModel):
     event_id: str | None = None
     object_id: str | None = None
     zone_id: str | None = None
+    agent_mode: Literal["forensic", "live", "auto"] = "auto"
 
 
 class AlertRuleRequest(BaseModel):

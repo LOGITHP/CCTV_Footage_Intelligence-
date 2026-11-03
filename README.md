@@ -20,12 +20,31 @@ An on-premises, evidence-oriented video processing platform.
 
 ### Meta AI, Baseten Hosting, MinIO & Qdrant Cloud Integration
 
+### Telegram alerts and operator assistant
+
+Telegram is integrated through the durable notification outbox. Configure
+`NOTIFICATION_MODE=telegram`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and a
+random `TELEGRAM_WEBHOOK_SECRET` in the environment. Alert-rule matches and
+detected unusual activity/anomalies are delivered to the configured chat.
+
+Expose the API over HTTPS, then register the webhook:
+
+```bash
+python scripts/configure_telegram_webhook.py
+```
+
+The bot accepts questions such as “summarize unusual activity” or “are any
+cameras offline?”. Replies are grounded in the stored camera alerts,
+anomalies, events, and latest recording evidence. Only chat IDs listed in
+`TELEGRAM_ALLOWED_CHAT_IDS` (or the configured default chat ID) may receive
+answers.
+
 - **Meta Muse Spark Open LLM**:
   - Connects to Baseten's managed inference gateway at `https://inference.baseten.co/v1/chat/completions`.
-  - Configured with official hackathon model `meta-models/muse-spark-open-1026` and API key `b10_nVtchD9y...` ($100 credit + 2M tokens/min).
+  - Configured with official hackathon model `meta-models/muse-spark-open-1026`; provide the Baseten key through `BASETEN_API_KEY`.
   - Configured with dual-failover to Meta Model API (`https://api.meta.ai/v1`, model `muse-spark-1.3`).
 - **Meta SAM 3.1 Segmentation & Detection**:
-  - Primary path: **Meta Direct API** (`POST https://api.meta.ai/v1/responses` with model `sam-3.1` and bearer key `LLM_...`).
+  - Primary path: **Meta Direct API** (`POST https://api.meta.ai/v1/responses` with model `sam-3.1`); provide the bearer key through `META_API_KEY`.
   - Secondary path: **Baseten Truss Service** via `BASETEN_SAM_ENDPOINT` (package ready in `baseten_models/sam3_1`).
   - Fallback: Local edge and morphological contour segmentation.
 - **Local SigLIP 2 & BGE-M3 in Docker**:
@@ -34,7 +53,7 @@ An on-premises, evidence-oriented video processing platform.
 - **MinIO Local S3 Object Storage**:
   - Runs in `docker-compose.yml` alongside the backend on port `9000` (API) and `9001` (Web UI).
   - All original raw video uploads and trimmed evidence cuts are safely stored in MinIO bucket `video-intelligence`.
-  - Credentials: User `minioadmin`, Password `minioadminpassword123`.
+  - Credentials are supplied through `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY`; no credentials are committed to the repository.
 - **Live Stack Verification Audit**:
   - Run the full 5-point live stack connection audit:
     ```bash
@@ -678,7 +697,7 @@ The named volume `video_intelligence_actual_media` preserves all footage and dat
 
 ### JWT Authentication & Security
 - **Enforced Authentication**: Set `AUTH_REQUIRED=true` (enabled by default in `docker-compose.yml`).
-- **Initial Bootstrap Admin**: Pre-configured via `ADMIN_USERNAME=admin` and `ADMIN_PASSWORD=adminpassword123`.
+- **Initial Bootstrap Admin**: Configure `ADMIN_USERNAME` and `ADMIN_PASSWORD` through the local environment before starting Docker.
 - **Token Format**: Standard HS256-signed Bearer tokens with configurable TTL (`JWT_TOKEN_TTL_SECONDS=3600`).
 - **Web Console & API**: The frontend UI stores tokens in `localStorage` upon login, transparently attaching `Authorization: Bearer <token>` to all protected endpoints.
 - **REST Endpoints**:

@@ -33,9 +33,9 @@ def test_local_object_storage_and_inline_dispatcher_are_offline(tmp_path):
     assert InlineDispatcher().dispatch("video.process") == "inline:video.process"
 
 
-def test_yolo_profile_requires_explicit_model_and_baseline_is_named():
-    with pytest.raises(ModelUnavailableError, match="YOLO_MODEL"):
-        build_detector(ModelSettings(profile="yolo"))
+def test_unsupported_profile_raises_and_baseline_is_named():
+    with pytest.raises(ModelUnavailableError, match="unsupported MODEL_PROFILE"):
+        build_detector(ModelSettings(profile="unsupported"))
     assert model_capabilities(ModelSettings(profile="baseline"))["detector"] == "bright-blob-baseline"
 
 

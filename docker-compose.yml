@@ -15,22 +15,22 @@ services:
     environment:
       # --- JWT Authentication (Enforced) ---
       - AUTH_REQUIRED=true
-      - JWT_SECRET=meta_hackathon_super_secret_jwt_key_at_least_32_bytes_long!
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
       - JWT_TOKEN_TTL_SECONDS=3600
       - APP_ENV=production
       - ADMIN_USERNAME=admin
-      - ADMIN_PASSWORD=adminpassword123
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       - ALLOW_PUBLIC_SIGNUP=true
 
       # --- Supabase PostgreSQL Database (IPv4 Pooler Compatible with Docker Bridge) ---
-      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://postgres.iprbivrwcicogcjxzylr:Plogithh%40200855@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require}
+      - DATABASE_URL=${DATABASE_URL:-}
 
       # --- Object Storage (Default local; switch to minio when running minio profile) ---
       - OBJECT_STORAGE_BACKEND=${OBJECT_STORAGE_BACKEND:-local}
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
       - MINIO_BUCKET=${MINIO_BUCKET:-video-intelligence}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadminpassword123}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in .env}
       - S3_REGION=us-east-1
 
       # --- Local Persistent Storage Root ---
@@ -46,11 +46,11 @@ services:
 
       # SAM 3.1: Uses Meta Direct API
       - SAM_MODEL_MODE=meta
-      - META_API_KEY=LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg
+      - META_API_KEY=${META_API_KEY:-}
       - META_API_URL=https://api.meta.ai/v1
 
       # Muse Spark LLM: Uses Baseten Model API ($100 credit + 2M TPM)
-      - BASETEN_API_KEY=b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL
+      - BASETEN_API_KEY=${BASETEN_API_KEY:-}
       - BASETEN_INFERENCE_URL=https://inference.baseten.co/v1
       - META_MODEL=meta-models/muse-spark-open-1026
 
@@ -62,7 +62,7 @@ services:
 
       # --- Qdrant Cloud Vector Storage ---
       - QDRANT_URL=https://6b0d33bb-ed40-4932-b576-d73fb0d8bce0.sa-east-1-0.aws.cloud.qdrant.io
-      - QDRANT_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6NzgyNWY1ZTItZjRiNi00ZjEzLTk2YmQtYjA1MDIwOGYwMDZiIn0._Wq5qyrC0AeFJwAZieBzQsz_baWyA3vdNEX3hwTsiaA
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - QDRANT_COLLECTION=video-events
 
     volumes:
@@ -93,7 +93,7 @@ services:
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadminpassword123
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in .env}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"

@@ -154,20 +154,29 @@
 
   function setView(view) {
     closeAccountMenu();
-    document.querySelectorAll('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
-    document.querySelectorAll('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view));
+    const effectiveView = view === 'assistant' ? 'forensic-copilot' : view;
+    document.querySelectorAll('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view || button.dataset.view === effectiveView));
+    document.querySelectorAll('[data-view-panel]').forEach((panel) => {
+      const panelName = panel.dataset.viewPanel;
+      const isActive = panelName === view || panelName === effectiveView || (view === 'assistant' && panelName === 'forensic-copilot');
+      panel.classList.toggle('active', isActive);
+    });
     const titles = {
       overview: 'Operations Hub',
       camera: 'Live Video Matrix',
-      monitoring: 'Camera Provisioning',
-      evidence: 'Forensic Workbench',
-      assistant: 'AI Copilot (LangGraph)',
-      alerts: 'Security Rules',
+      monitoring: 'Camera Streams & Fleet',
+      alerts: 'Perimeter Rules & Tripwires',
+      'live-copilot': 'Live Stream Copilot',
+      evidence: 'Video Upload & Forensic Workbench',
+      'forensic-copilot': 'Forensic Copilot (Archive Analysis)',
+      assistant: 'Forensic Copilot (Archive Analysis)',
+      'storage-vault': 'Separated Surveillance Storage Vault',
       settings: 'Console Configuration & Endpoints',
     };
-    $('view-title').textContent = titles[view] || 'Operations Hub';
-    if (view === 'monitoring') loadMonitoring();
-    if (view === 'evidence') loadVideoArchive();
+    $('view-title').textContent = titles[effectiveView] || 'Operations Hub';
+    if (effectiveView === 'monitoring') loadMonitoring();
+    if (effectiveView === 'evidence') loadVideoArchive();
+    if (effectiveView === 'storage-vault') loadStorageVault();
   }
 
   function showAuth(show) {
@@ -386,25 +395,12 @@
       capabilityLine('Meta SAM 3.1', detectors.sam?.available ? 'Ready (Segment + Detect)' : 'Ready', true),
       capabilityLine('Meta SAM Tracker', trackers.sam?.available ? 'Ready (Video Tracker)' : 'Ready', true),
       capabilityLine('Baseline detector', 'Ready', Boolean(detectors.baseline?.available)),
-      capabilityLine('YOLO', detectors.yolo?.available ? 'Ready' : 'Optional checkpoint', Boolean(detectors.yolo?.available)),
       capabilityLine('Centroid tracker', 'Ready', Boolean(trackers.centroid?.available)),
-      capabilityLine('ByteTrack', trackers.bytetrack?.available ? 'Ready' : 'Optional package', Boolean(trackers.bytetrack?.available)),
       capabilityLine('Assistant', chat.meta_api_configured ? 'Meta Muse Spark 1.3 (API)' : (chat.available ? 'Qwen grounded' : 'Structured grounded mode'), true),
     ].join('');
     ['overview-capabilities', 'settings-capabilities'].forEach((id) => { if ($(id)) $(id).innerHTML = html; });
     const readyModels = [detectors.sam?.available ?? true, detectors.baseline?.available, trackers.sam?.available ?? true, trackers.centroid?.available, chat.available].filter(Boolean).length;
-    const optionalModels = [detectors.yolo?.available, trackers.bytetrack?.available, chat.available].filter(Boolean).length;
     if ($('settings-runtime-summary')) $('settings-runtime-summary').textContent = `Meta AI stack active · SAM 3.1 & Muse Spark 1.3 ready · ${readyModels} capabilities confirmed.`;
-    const yolo = $('model-profile')?.querySelector('option[value="yolo"]');
-    if (yolo) {
-      yolo.disabled = !detectors.yolo?.available;
-      yolo.textContent = detectors.yolo?.available ? 'YOLO · ready' : 'YOLO · local checkpoint required';
-    }
-    const bytetrack = $('tracker-profile')?.querySelector('option[value="bytetrack"]');
-    if (bytetrack) {
-      bytetrack.disabled = !trackers.bytetrack?.available;
-      bytetrack.textContent = trackers.bytetrack?.available ? 'ByteTrack · ready' : 'ByteTrack · package required';
-    }
     $('metric-assistant').textContent = chat.meta_api_configured ? 'Meta Muse' : (chat.available ? 'Qwen' : 'Grounded');
     $('metric-assistant-detail').textContent = chat.meta_api_configured ? 'Muse Spark 1.3 active' : (chat.available ? 'Local model enabled' : 'Structured mode ready');
   }
@@ -465,11 +461,13 @@
     }
     const table = document.createElement('table');
     table.className = 'events-table';
-    table.innerHTML = '<thead><tr><th>Track scope</th><th>Track ID</th><th>Category</th><th>Label</th><th>Appearance cues</th><th>Time</th></tr></thead>';
+    table.innerHTML = '<thead><tr><th>Track Scope</th><th>Track ID</th><th>Category</th><th>Label</th><th>Appearance Cues</th><th>Timestamp</th></tr></thead>';
     const body = document.createElement('tbody');
     tracks.forEach((track) => {
       const row = document.createElement('tr');
-      row.innerHTML = `<td>${escape(track.track_scope || 'session')}</td><td>${escape(track.track_id)}</td><td>${escape(track.object_category || '—')}</td><td>${escape(track.object_label || 'object')}</td><td>${escape(appearanceSummary(track.appearance))}</td><td>${escape(Number(track.timestamp_seconds).toFixed(3))}s</td>`;
+      const cat = String(track.object_category || '').toLowerCase();
+      const catClass = cat === 'vehicle' ? 'vehicle' : (cat === 'person' ? 'person' : '');
+      row.innerHTML = `<td><span title="${escape(track.track_scope || '')}">${escape(track.track_scope || 'session')}</span></td><td><strong>${escape(track.track_id)}</strong></td><td><span class="badge ${catClass}">${escape(track.object_category || '—')}</span></td><td>${escape(track.object_label || 'object')}</td><td>${escape(appearanceSummary(track.appearance))}</td><td>${escape(Number(track.timestamp_seconds).toFixed(3))}s</td>`;
       body.appendChild(row);
     });
     table.appendChild(body);
@@ -1019,7 +1017,7 @@
         effectiveCameraId = null;
       }
 
-      const body = await request('/api/v1/chat', {
+      const body = await request('/api/v1/chat/forensic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1027,6 +1025,7 @@
           video_id: effectiveVideoId,
           camera_id: effectiveCameraId,
           session_id: effectiveSessionId,
+          agent_mode: 'forensic',
         }),
       });
       appendChat('assistant', `${body.answer}\n\n${(body.citations || []).length} verified citation(s) · ${body.answer_mode}`, false, body.trimmed_clips || []);
@@ -1100,6 +1099,139 @@
 
     history.appendChild(item);
     history.scrollTop = history.scrollHeight;
+  }
+
+  function appendLiveChat(role, message, bad = false) {
+    const history = $('live-chat-history');
+    if (!history) return;
+    if (history.querySelector('.chat-empty')) history.replaceChildren();
+    const item = document.createElement('div');
+    item.className = `chat-message ${role}${bad ? ' bad' : ''}`;
+    const textNode = document.createElement('div');
+    textNode.className = 'chat-message-content';
+    textNode.innerHTML = formatChatMessage(message);
+    item.appendChild(textNode);
+    history.appendChild(item);
+    history.scrollTop = history.scrollHeight;
+  }
+
+  async function askLiveChat(event) {
+    event.preventDefault();
+    const question = $('live-chat-question').value.trim();
+    if (!question) return;
+    appendLiveChat('user', question);
+    try {
+      const rawSession = $('live-chat-session-id')?.value.trim() || null;
+      const rawCamera = $('live-chat-camera-id')?.value.trim() || null;
+      const body = await request('/api/v1/chat/live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: question,
+          camera_id: rawCamera,
+          session_id: rawSession,
+          agent_mode: 'live',
+        }),
+      });
+      appendLiveChat('assistant', `${body.answer}\n\n${(body.citations || []).length} verified live citation(s) · ${body.answer_mode}`);
+      setStatus('live-chat-status', `${body.citations?.length || 0} verified live citation(s)`);
+    } catch (error) {
+      appendLiveChat('assistant', error.message, true);
+      setStatus('live-chat-status', error.message, true);
+    }
+    $('live-chat-question').value = '';
+  }
+
+  async function loadStorageVault() {
+    setStatus('storage-status', 'Loading storage vault breakdown…');
+    try {
+      const data = await request('/api/v1/storage/summary');
+      const uploads = data.uploaded_footage || { items: [], total_files: 0, total_mb: 0 };
+      const live = data.live_streams || { items: [], total_files: 0, total_mb: 0 };
+      const evidence = data.forensic_evidence || { items: [], total_files: 0, total_mb: 0 };
+
+      if ($('storage-uploads-size')) $('storage-uploads-size').textContent = `${uploads.total_mb} MB`;
+      if ($('storage-uploads-count')) $('storage-uploads-count').textContent = `${uploads.total_files} video file(s)`;
+
+      if ($('storage-live-size')) $('storage-live-size').textContent = `${live.total_mb} MB`;
+      if ($('storage-live-count')) $('storage-live-count').textContent = `${live.total_files} recording chunk(s)`;
+
+      if ($('storage-evidence-size')) $('storage-evidence-size').textContent = `${evidence.total_mb} MB`;
+      if ($('storage-evidence-count')) $('storage-evidence-count').textContent = `${evidence.total_files} trimmed clip(s)`;
+
+      const uploadsTbody = $('storage-uploads-table');
+      if (uploadsTbody) {
+        if (!uploads.items.length) {
+          uploadsTbody.innerHTML = '<tr><td colspan="4" class="empty">No uploaded footage files found.</td></tr>';
+        } else {
+          uploadsTbody.innerHTML = uploads.items.map(item => `
+            <tr>
+              <td><strong>${escapeHtml(item.name)}</strong></td>
+              <td>${item.size_mb} MB</td>
+              <td>${escapeHtml(item.modified_at)}</td>
+              <td>
+                <button class="button danger small delete-storage-btn" data-category="uploads" data-filename="${escapeHtml(item.name)}">Delete</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      const liveTbody = $('storage-live-table');
+      if (liveTbody) {
+        if (!live.items.length) {
+          liveTbody.innerHTML = '<tr><td colspan="4" class="empty">No live stream recordings found.</td></tr>';
+        } else {
+          liveTbody.innerHTML = live.items.map(item => `
+            <tr>
+              <td><strong>${escapeHtml(item.name)}</strong></td>
+              <td>${item.size_mb} MB</td>
+              <td>${escapeHtml(item.modified_at)}</td>
+              <td>
+                <button class="button danger small delete-storage-btn" data-category="live_streams" data-filename="${escapeHtml(item.name)}">Delete</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      const evidenceTbody = $('storage-evidence-table');
+      if (evidenceTbody) {
+        if (!evidence.items.length) {
+          evidenceTbody.innerHTML = '<tr><td colspan="4" class="empty">No trimmed evidence clips generated yet.</td></tr>';
+        } else {
+          evidenceTbody.innerHTML = evidence.items.map(item => `
+            <tr>
+              <td><strong>${escapeHtml(item.name)}</strong></td>
+              <td>${item.size_mb} MB</td>
+              <td>${escapeHtml(item.modified_at)}</td>
+              <td>
+                <button class="button danger small delete-storage-btn" data-category="evidence" data-filename="${escapeHtml(item.name)}">Delete</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      document.querySelectorAll('.delete-storage-btn').forEach(btn => {
+        btn.onclick = async () => {
+          const category = btn.dataset.category;
+          const filename = btn.dataset.filename;
+          if (!confirm(`Are you sure you want to delete ${filename} from ${category}?`)) return;
+          try {
+            await request(`/api/v1/storage/${encodeURIComponent(category)}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+            notify(`Deleted ${filename}`);
+            loadStorageVault();
+          } catch (err) {
+            setStatus('storage-status', err.message, true);
+          }
+        };
+      });
+
+      setStatus('storage-status', 'Storage vault synchronized.');
+    } catch (err) {
+      setStatus('storage-status', `Failed to load storage: ${err.message}`, true);
+    }
   }
 
   const MONITORING_STATUSES = new Set(['configured', 'queued', 'starting', 'running', 'degraded', 'completed', 'failed', 'stopped', 'disabled']);
@@ -1588,6 +1720,16 @@
   $('camera-record').addEventListener('click', startRecording);
   $('camera-stop').addEventListener('click', () => stopCamera(true));
   $('chat-form').addEventListener('submit', askChat);
+  if ($('live-chat-form')) $('live-chat-form').addEventListener('submit', askLiveChat);
+  if ($('storage-refresh')) $('storage-refresh').addEventListener('click', loadStorageVault);
+  document.querySelectorAll('[data-live-chat-suggestion]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if ($('live-chat-question')) {
+        $('live-chat-question').value = btn.dataset.liveChatSuggestion;
+        $('live-chat-form').dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    });
+  });
   $('refresh-alerts').addEventListener('click', loadAlerts);
   $('alert-form').addEventListener('submit', async (event) => { event.preventDefault(); try { await request('/api/v1/alerts/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('alert-name').value.trim(), event_type: $('alert-event-type').value.trim() || null, zone_id: $('alert-zone-id').value.trim() || null, object_label: $('alert-object-id').value.trim() || null }) }); await loadAlerts(); notify('Alert rule saved'); } catch (error) { setStatus('alert-status', error.message, true); } });
   $('save-api').addEventListener('click', saveSettingsConnection);

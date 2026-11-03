@@ -182,6 +182,13 @@ def run_recording_evaluation(
         siglip_model=base.siglip_model,
         bge_model=base.bge_model,
         qwen_model=base.qwen_model,
+        meta_api_key=base.meta_api_key,
+        meta_api_url=base.meta_api_url,
+        meta_model=base.meta_model,
+        baseten_api_key=base.baseten_api_key,
+        baseten_sam_endpoint=base.baseten_sam_endpoint,
+        baseten_siglip_endpoint=base.baseten_siglip_endpoint,
+        baseten_bge_endpoint=base.baseten_bge_endpoint,
         model_cache=base.model_cache,
     )
     try:

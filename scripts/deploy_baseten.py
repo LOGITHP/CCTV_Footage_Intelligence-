@@ -13,11 +13,8 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import sys
 import urllib.request
-import urllib.error
 
-BASETEN_API_KEY = os.getenv("BASETEN_API_KEY", "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL")
 BASE_URL = "https://api.baseten.co/v1"
 MODELS_DIR = Path(__file__).resolve().parent.parent / "baseten_models"
 
@@ -32,15 +29,15 @@ def load_env():
                 os.environ.setdefault(k.strip(), v.strip())
 
 
-def get_deployed_models() -> list[dict]:
+def get_deployed_models(api_key: str) -> list[dict]:
     req = urllib.request.Request(
         f"{BASE_URL}/models",
-        headers={"Authorization": f"Api-Key {BASETEN_API_KEY}"},
+        headers={"Authorization": f"Api-Key {api_key}"},
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data.get("models", [])
+            return data.get("models", data.get("data", []))
     except Exception as exc:
         print(f"Error fetching models from Baseten: {exc}")
         return []
@@ -93,15 +90,18 @@ def update_env_endpoints(endpoints: dict[str, str]):
 
 def main():
     load_env()
+    api_key = os.getenv("BASETEN_API_KEY", "").strip()
+    if not api_key:
+        raise SystemExit("BASETEN_API_KEY must be set in the environment or .env")
     print("=== Baseten Model Services Manager ===\n")
     validate_trusses()
 
     print("\nQuerying Baseten workspace with API key...")
-    models = get_deployed_models()
+    models = get_deployed_models(api_key)
     print(f"Found {len(models)} active model(s) in Baseten workspace.")
 
     endpoints = {
-        "BASETEN_API_KEY": BASETEN_API_KEY,
+        "BASETEN_API_KEY": api_key,
     }
 
     model_map = {m.get("name", "").lower(): m for m in models}
@@ -128,4 +128,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

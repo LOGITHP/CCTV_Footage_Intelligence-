@@ -135,6 +135,11 @@ class NotificationSettings:
     email_from: str | None = None
     email_to: str | None = None
     email_starttls: bool = False
+    telegram_bot_token: str | None = field(default=None, repr=False)
+    telegram_chat_id: str | None = None
+    telegram_allowed_chat_ids: tuple[str, ...] = ()
+    telegram_webhook_secret: str | None = field(default=None, repr=False)
+    telegram_api_base_url: str = "https://api.telegram.org"
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,8 +256,8 @@ class InfrastructureSettings:
         )
 
         notification_mode = (_first(env, "NOTIFICATION_MODE") or "noop").lower()
-        if notification_mode not in {"noop", "local", "webhook", "email", "multi"}:
-            raise ValueError("NOTIFICATION_MODE must be noop, local, webhook, email, or multi")
+        if notification_mode not in {"noop", "local", "webhook", "email", "telegram", "multi"}:
+            raise ValueError("NOTIFICATION_MODE must be noop, local, webhook, email, telegram, or multi")
         notifications = NotificationSettings(
             mode=notification_mode,
             channels=_csv(env, "NOTIFICATION_CHANNELS"),
@@ -266,6 +271,11 @@ class InfrastructureSettings:
             email_from=_first(env, "NOTIFICATION_EMAIL_FROM"),
             email_to=_first(env, "NOTIFICATION_EMAIL_TO"),
             email_starttls=_boolean(env, "NOTIFICATION_EMAIL_STARTTLS", default=False),
+            telegram_bot_token=_first(env, "TELEGRAM_BOT_TOKEN"),
+            telegram_chat_id=_first(env, "TELEGRAM_CHAT_ID"),
+            telegram_allowed_chat_ids=_csv(env, "TELEGRAM_ALLOWED_CHAT_IDS"),
+            telegram_webhook_secret=_first(env, "TELEGRAM_WEBHOOK_SECRET"),
+            telegram_api_base_url=_first(env, "TELEGRAM_API_BASE_URL") or "https://api.telegram.org",
         )
         retention = RetentionSettings(
             days=_integer(env, "RETENTION_DAYS", 30, minimum=1),

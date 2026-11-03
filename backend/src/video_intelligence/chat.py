@@ -279,9 +279,14 @@ def answer_query(
             event_type=plan.event_type,
         )
 
-        if not matches and video_id and hasattr(store, "search_tracks"):
-            tracks = store.search_tracks(video_id=video_id)
+        if not matches and (video_id or session_id) and hasattr(store, "search_tracks"):
+            lookup_id = video_id or session_id
+            tracks = store.search_tracks(video_id=lookup_id)
+            if not tracks:
+                tracks = store.search_tracks(track_scope=lookup_id)
             if tracks:
+                if plan.object_label:
+                    tracks = [t for t in tracks if (t.get("object_label") or "").lower() == plan.object_label.lower()]
                 track_groups: dict[str, list[dict[str, Any]]] = {}
                 for t in tracks:
                     tid = str(t.get("track_id") or "unknown")
@@ -295,9 +300,9 @@ def answer_query(
                     cat = first_obs.get("object_category") or label
                     matches.append({
                         "event_id": f"trk-{tid}",
-                        "video_id": video_id,
+                        "video_id": lookup_id,
                         "event_type": "tracked",
-                        "zone_id": plan.zone_id or "camera-view",
+                        "zone_id": plan.zone_id or "zone-1",
                         "object_id": tid,
                         "object_label": label,
                         "object_category": cat,
@@ -330,4 +335,128 @@ def answer_query(
         "query_plan": plan.__dict__,
         "citations": citations,
         "matches": matches,
+    }
+
+
+def answer_live_query(
+    store: Any,
+    request: Any,
+    *,
+    camera_id: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Dedicated Live Surveillance Agent answering real-time camera matrix and alert questions."""
+    if isinstance(request, str):
+        message = request
+        req_conversation_id = None
+    else:
+        message = getattr(request, "message", str(request))
+        camera_id = camera_id or getattr(request, "camera_id", None)
+        session_id = session_id or getattr(request, "session_id", None)
+        req_conversation_id = getattr(request, "conversation_id", None)
+
+    cameras = store.list_cameras() if hasattr(store, "list_cameras") else []
+    alerts = store.list_alerts() if hasattr(store, "list_alerts") else []
+    rules = store.list_alert_rules() if hasattr(store, "list_alert_rules") else []
+
+    if not camera_id:
+        cam_match = re.search(r"\b(cam(?:era)?[-_\s]*\w+|ch[-_\s]*\d+)\b", message, re.IGNORECASE)
+        if cam_match:
+            candidate_cam = cam_match.group(1).lower().replace(" ", "-")
+            for c in cameras:
+                cid = str(c.get("camera_id", "")).lower()
+                cname = str(c.get("display_name", "")).lower()
+                if candidate_cam in cid or candidate_cam in cname:
+                    camera_id = c.get("camera_id")
+                    break
+
+    active_alerts = [a for a in alerts if a.get("status") in {"active", "open", "unacknowledged", "triggered"}]
+    scoped_cameras = [c for c in cameras if not camera_id or c.get("camera_id") == camera_id]
+    scoped_alerts = [a for a in active_alerts if not camera_id or a.get("camera_id") == camera_id]
+    scoped_rules = [r for r in rules if not camera_id or r.get("camera_id") == camera_id or not r.get("camera_id")]
+
+    citations = []
+    for c in scoped_cameras:
+        src = c.get("source", {}).get("path") or c.get("source", {}).get("url") or "RTSP / file"
+        citations.append({
+            "citation_type": "camera_stream",
+            "camera_id": c.get("camera_id"),
+            "display_name": c.get("display_name"),
+            "stream_source": src,
+            "status": "online" if c.get("enabled", True) else "disabled",
+            "zones_configured": len(c.get("zones", [])),
+        })
+    for a in scoped_alerts[:10]:
+        citations.append({
+            "citation_type": "active_alert",
+            "alert_id": a.get("alert_id"),
+            "camera_id": a.get("camera_id", "unknown"),
+            "rule_name": a.get("rule_name") or a.get("name") or "Perimeter breach",
+            "event_type": a.get("event_type", "tripwire_breach"),
+            "status": a.get("status", "active"),
+            "timestamp": a.get("created_at") or a.get("timestamp"),
+        })
+    for r in scoped_rules[:5]:
+        citations.append({
+            "citation_type": "security_rule",
+            "rule_id": r.get("rule_id"),
+            "name": r.get("name"),
+            "zone_id": r.get("zone_id", "all"),
+            "object_label": r.get("object_label", "all"),
+            "enabled": r.get("enabled", True),
+        })
+
+    total_cams = len(cameras)
+    online_cams = sum(1 for c in cameras if c.get("enabled", True))
+    offline_cams = total_cams - online_cams
+    total_breaches = len(active_alerts)
+
+    cam_rows = []
+    for idx, c in enumerate(scoped_cameras, 1):
+        status_badge = "🟢 ONLINE" if c.get("enabled", True) else "🔴 DISABLED"
+        src = c.get("source", {}).get("path") or c.get("source", {}).get("url") or "rtsp://..."
+        cam_rows.append(f"| `{c.get('camera_id')}` | **{c.get('display_name')}** | {status_badge} | `{src}` | {len(c.get('zones', []))} zone(s) |")
+    cam_table = "\n".join(cam_rows) if cam_rows else "| — | *No cameras registered in this scope* | — | — | — |"
+
+    alert_rows = []
+    for idx, a in enumerate(scoped_alerts, 1):
+        alert_rows.append(f"- ⚠️ **Alert `{a.get('alert_id')[:8]}`**: Camera `{a.get('camera_id')}` — Rule: **{a.get('rule_name', 'Intrusion')}** ({a.get('status', 'active')})")
+    alert_summary = "\n".join(alert_rows) if alert_rows else "✅ **Zero Active Perimeter Breaches** — All monitored camera streams are secure."
+
+    answer = (
+        f"### 1. Live Surveillance Fleet Overview\n"
+        f"- **Camera Matrix Status**: **{online_cams} Active Stream(s)** online out of {total_cams} registered ({offline_cams} offline/disabled).\n"
+        f"- **Perimeter Breach Status**: **{total_breaches} Active Intrusion Alert(s)** requiring operator attention.\n"
+        f"- **Armed Tripwires**: {len(rules)} security rules actively enforcing boundary containment.\n\n"
+        f"### 2. Monitored Camera Streams\n"
+        f"| Channel ID | Camera Name | Health Status | RTSP Source | Boundary Zones |\n"
+        f"| :--- | :--- | :--- | :--- | :--- |\n"
+        f"{cam_table}\n\n"
+        f"### 3. Active Real-Time Intrusion & Tripwire Alerts\n"
+        f"{alert_summary}\n\n"
+        f"### 4. Operational Recommendations\n"
+        f"- {'Verify camera RTSP connection integrity.' if offline_cams > 0 else 'All video stream links responding nominally with low packet jitter.'}\n"
+        f"- {'Acknowledge or dispatch security sentries to investigated zones.' if total_breaches > 0 else 'Continue standard automated perimeter sentry sweep.'}"
+    )
+
+    chat_mode = os.getenv("CHAT_MODEL_MODE", "template").strip().lower()
+    answer_mode = "live-stream-grounded"
+    if citations and chat_mode in {"meta", "muse", "muse-spark-1.3"}:
+        try:
+            from .model_adapters import MetaMuseGroundedResponder
+            responder = MetaMuseGroundedResponder()
+            answer = responder.respond(message, citations)
+            answer_mode = "meta-muse-live-grounded"
+        except Exception:
+            pass
+
+    conversation_id = req_conversation_id or str(uuid4())
+    return {
+        "conversation_id": conversation_id,
+        "answer": answer,
+        "answer_mode": answer_mode,
+        "citations": citations,
+        "cameras": scoped_cameras,
+        "active_alerts": scoped_alerts,
+        "rules": scoped_rules,
     }

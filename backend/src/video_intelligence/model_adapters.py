@@ -34,10 +34,10 @@ class ModelSettings:
     siglip_model: str = "google/siglip2-base-patch16-224"
     bge_model: str = "BAAI/bge-m3"
     qwen_model: str = "Qwen/Qwen3-8B"
-    meta_api_key: str = "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg"
+    meta_api_key: str = ""
     meta_api_url: str = "https://api.meta.ai/v1"
     meta_model: str = "meta-models/muse-spark-open-1026"
-    baseten_api_key: str = "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL"
+    baseten_api_key: str = ""
     baseten_sam_endpoint: str = ""
     baseten_siglip_endpoint: str = ""
     baseten_bge_endpoint: str = ""
@@ -61,7 +61,7 @@ def _require_local_checkpoint(value: str, setting_name: str) -> Path | str:
             raise ModelUnavailableError(f"{setting_name} local checkpoint directory is empty: {path}")
         return path.resolve()
     if "/" in candidate and not candidate.startswith((".", "/")):
-        if os.getenv("ALLOW_HF_HUB", "true").lower() in {"true", "1", "yes"}:
+        if os.getenv("ALLOW_HF_HUB", "false").lower() in {"true", "1", "yes"}:
             return candidate
     raise ModelUnavailableError(f"{setting_name} local checkpoint does not exist: {path}")
 
@@ -91,10 +91,10 @@ def settings_from_env() -> ModelSettings:
         siglip_model=os.getenv("SIGLIP_MODEL", "google/siglip2-base-patch16-224").strip(),
         bge_model=os.getenv("BGE_MODEL", "BAAI/bge-m3").strip(),
         qwen_model=os.getenv("QWEN_MODEL", "Qwen/Qwen3-8B").strip(),
-        meta_api_key=os.getenv("META_API_KEY", os.getenv("MUSE_API_KEY", "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg")).strip(),
+        meta_api_key=os.getenv("META_API_KEY", os.getenv("MUSE_API_KEY", "")).strip(),
         meta_api_url=os.getenv("META_API_URL", "https://api.meta.ai/v1").strip(),
         meta_model=os.getenv("META_MODEL", os.getenv("MUSE_MODEL", "meta-models/muse-spark-open-1026")).strip(),
-        baseten_api_key=os.getenv("BASETEN_API_KEY", "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL").strip(),
+        baseten_api_key=os.getenv("BASETEN_API_KEY", "").strip(),
         baseten_sam_endpoint=os.getenv("BASETEN_SAM_ENDPOINT", "").strip(),
         baseten_siglip_endpoint=os.getenv("BASETEN_SIGLIP_ENDPOINT", "").strip(),
         baseten_bge_endpoint=os.getenv("BASETEN_BGE_ENDPOINT", "").strip(),
@@ -223,6 +223,16 @@ class ByteTrackTracker:
 
 class EmbeddingUnavailableError(ModelUnavailableError):
     pass
+
+
+def _safe_category(label: str, category: Any = None) -> str | None:
+    """Normalize provider-specific categories to the domain contract."""
+
+    inferred = object_category_for_label(label)
+    if inferred is not None:
+        return inferred
+    normalized = str(category or "").strip().lower()
+    return normalized if normalized in {"person", "vehicle"} else None
 
 
 class EmbeddingService:
@@ -463,13 +473,13 @@ class MetaMuseGroundedResponder:
         timeout: float = 12.0,
     ) -> None:
         self.settings = settings or settings_from_env()
+        self.explicit_api_url = api_url is not None
         self.api_key = (
             api_key
-            or os.getenv("META_API_KEY")
+            if api_key is not None
+            else os.getenv("META_API_KEY")
             or os.getenv("MUSE_API_KEY")
             or self.settings.meta_api_key
-            or self.settings.baseten_api_key
-            or "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL"
         ).strip()
         self.api_url = (
             api_url
@@ -520,21 +530,20 @@ class MetaMuseGroundedResponder:
             {"role": "system", "content": system},
             {"role": "user", "content": prompt_content},
         ]
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0.0,
-            "max_tokens": 1536,
-        }
-        
-        # Multi-model routing: Prioritize Baseten Hackathon inference endpoint for Muse Spark LLM, fallback to Meta API
-        baseten_key = (os.getenv("BASETEN_API_KEY") or self.settings.baseten_api_key or "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL").strip()
+        # Multi-model routing: use Baseten only when explicitly configured, then
+        # fall back to the Meta API.  No credential is embedded in the source;
+        # this also keeps offline tests from making accidental paid requests.
+        baseten_key = (os.getenv("BASETEN_API_KEY") or self.settings.baseten_api_key).strip()
         baseten_url = (os.getenv("BASETEN_INFERENCE_URL") or "https://inference.baseten.co/v1").rstrip("/")
         endpoints_to_try = []
-        if baseten_key:
-            endpoints_to_try.append((baseten_url, baseten_key, "meta-models/muse-spark-open-1026"))
-        if self.api_key and "inference.baseten.co" not in self.api_url:
-            endpoints_to_try.append((self.api_url, self.api_key, "muse-spark-1.3"))
+        if self.explicit_api_url:
+            if self.api_key:
+                endpoints_to_try.append((self.api_url, self.api_key, self.model))
+        else:
+            if baseten_key:
+                endpoints_to_try.append((baseten_url, baseten_key, "meta-models/muse-spark-open-1026"))
+            if self.api_key and self.api_url != baseten_url:
+                endpoints_to_try.append((self.api_url, self.api_key, "muse-spark-1.3"))
 
         import urllib.request
         for target_url, target_key, target_model in endpoints_to_try:
@@ -572,18 +581,22 @@ class MetaMuseGroundedResponder:
 
         # Deterministic fallback when remote API calls time out or network is offline
         if citations:
-            first = citations[0]
             total = len(citations)
             min_t = min(float(c.get("timestamp_seconds", 0)) for c in citations)
             max_t = max(float(c.get("timestamp_seconds", 0)) for c in citations)
             total_span = max_t - min_t
+
+            def format_seconds(value: float) -> str:
+                """Format source timestamps without discarding citation precision."""
+
+                return format(value, ".9f").rstrip("0").rstrip(".") or "0"
 
             counts: dict[str, int] = {}
             for c in citations:
                 lbl = c.get("object_label") or "object"
                 counts[lbl] = counts.get(lbl, 0) + 1
 
-            unique_zones = sorted(list({c.get("zone_id", "unknown") for c in citations if c.get("zone_id")}))
+            unique_zones = sorted(list({c.get("zone_id", "unknown") for c in citations if c.get("zone_id")})) or ["unknown"]
             
             parts = []
             if "person" in counts:
@@ -609,12 +622,12 @@ class MetaMuseGroundedResponder:
                 c_oid = c.get("object_id", "unknown")
                 c_zone = c.get("zone_id", "unknown")
                 c_cam = c.get("camera_id") or "CAM-01"
-                clip_info = c.get("evidence_interval") or f"{c_ts:.2f}s"
+                clip_info = c.get("evidence_interval") or f"{format_seconds(c_ts)}s"
                 mm = int(c_ts // 60)
                 ss = c_ts % 60
                 lbl_icon = "🚶" if c_label == "person" else ("🚗" if c_label == "vehicle" else "📦")
                 timeline_items.append(
-                    f"  {idx}. [{mm:02d}:{ss:05.2f} / {c_ts:.2f}s] {lbl_icon} **{c_label.upper()}** — Target `{c_oid}` in Zone `{c_zone}` | Stream: `{c_cam}` | Clip: `{clip_info}`"
+                    f"  {idx}. [{mm:02d}:{ss:06.3f} / {format_seconds(c_ts)}s] {lbl_icon} **{c_label.upper()}** — Target `{c_oid}` in Zone `{c_zone}` | Stream: `{c_cam}` | Clip: `{clip_info}`"
                 )
             if len(citations) > len(milestones):
                 timeline_items.append(f"  *(+ {len(citations) - len(milestones)} background object telemetry citation(s) indexed)*")
@@ -622,14 +635,14 @@ class MetaMuseGroundedResponder:
 
             return (
                 f"### 1. Executive Incident Summary\n"
-                f"- **Scene Overview**: Surveillance activity logged across **{total_span:.1f} seconds** ({min_t:.2f}s to {max_t:.2f}s) in monitored zone `{', '.join(unique_zones)}`.\n"
+                f"- **Scene Overview**: Surveillance activity logged across **{format_seconds(total_span)} seconds** ({format_seconds(min_t)}s to {format_seconds(max_t)}s) in monitored zone `{', '.join(unique_zones)}`.\n"
                 f"- **Verified Targets**: {entity_str} across {total} verified telemetry citations.\n"
-                f"- **Security Status**: **Normal / Clear** — No unauthorized perimeter breaches, loitering infractions, or alarm tripwires triggered.\n\n"
+                f"- **Evidence Status**: {total} event citation(s) were verified; no conclusion beyond the supplied telemetry is asserted.\n\n"
                 f"### 2. Key Activity & Chronological Milestones\n"
                 f"{timeline_str}\n\n"
                 f"### 3. Spatial & Behavioral Analysis\n"
-                f"- **Perimeter Confinement**: All detections strictly confined to `{', '.join(unique_zones)}`.\n"
-                f"- **Behavioral Assessment**: Standard vehicular movement and pedestrian transit; no loitering or anomalous trajectory patterns detected.\n\n"
+                f"- **Recorded Zones**: The supplied citations reference `{', '.join(unique_zones)}`.\n"
+                f"- **Behavioral Assessment**: The supplied citations do not establish additional behavior beyond the listed events.\n\n"
                 f"### 4. Verified Evidence Citations & Clip Artifacts\n"
                 f"- **Integrity Guarantee**: {total} verified citations cryptographically grounded in Meta SAM 3.1 perception tracking."
             )
@@ -730,20 +743,33 @@ class SAMDetector:
                                         left, top, right, bottom = xmin * w, ymin * h, xmax * w, ymax * h
                                     else:
                                         left, top, right, bottom = xmin / scale, ymin / scale, xmax / scale, ymax / scale
+                                    if (
+                                        not all(math.isfinite(value) for value in (left, top, right, bottom))
+                                        or right <= left
+                                        or bottom <= top
+                                    ):
+                                        continue
                                     cx = (left + right) / 2.0
                                     cy = (top + bottom) / 2.0
                                     area = (right - left) * (bottom - top)
                                     poly = ann.get("polygon") or ((left, top), (right, top), (right, bottom), (left, bottom))
+                                    polygon_values = tuple((float(p[0]), float(p[1])) for p in poly)
+                                    if polygon_values and all(
+                                        0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 for x, y in polygon_values
+                                    ):
+                                        polygon_values = tuple((x * w, y * h) for x, y in polygon_values)
                                     meta_dets.append(
                                         DetectedObject(
-                                            label=str(ann.get("label", "object")),
+                                            label=normalize_yolo_label(str(ann.get("label", "object"))),
                                             x=cx,
                                             y=cy,
                                             area=area,
                                             confidence=float(ann.get("confidence", 0.95)),
                                             bbox=(left, top, right, bottom),
-                                            category=ann.get("category"),
-                                            segmentation_polygon=tuple((float(p[0]), float(p[1])) for p in poly),
+                                            category=_safe_category(
+                                                str(ann.get("label", "object")), ann.get("category")
+                                            ),
+                                            segmentation_polygon=polygon_values,
                                         )
                                     )
                             if meta_dets:
@@ -769,15 +795,16 @@ class SAMDetector:
                         for d in resp["detections"]:
                             poly = tuple((float(p[0]), float(p[1])) for p in d.get("segmentation_polygon", [])) if d.get("segmentation_polygon") else None
                             bbox_val = tuple(float(b) for b in d["bbox"]) if d.get("bbox") else None
+                            label = normalize_yolo_label(str(d.get("label", "object")))
                             remote_dets.append(
                                 DetectedObject(
-                                    label=str(d.get("label", "object")),
+                                    label=label,
                                     x=float(d["x"]),
                                     y=float(d["y"]),
                                     area=float(d.get("area", 100.0)),
                                     confidence=float(d.get("confidence", 0.9)),
                                     bbox=bbox_val,
-                                    category=d.get("category"),
+                                    category=_safe_category(label, d.get("category")),
                                     segmentation_polygon=poly,
                                 )
                             )
@@ -913,10 +940,15 @@ def build_detector(settings: ModelSettings | None = None):
     settings = settings or settings_from_env()
     if settings.profile == "baseline":
         return BrightBlobDetector()
-    if settings.profile == "yolo":
-        return YOLODetector(settings.yolo_model, device=settings.device)
     if settings.profile in {"sam", "sam3.1", "sam2"}:
-        return SAMDetector(settings.sam_model, device=settings.device)
+        return SAMDetector(
+            settings.sam_model,
+            device=settings.device,
+            baseten_endpoint=settings.baseten_sam_endpoint,
+            baseten_api_key=settings.baseten_api_key,
+            meta_api_key=settings.meta_api_key,
+            meta_api_url=settings.meta_api_url,
+        )
     raise ModelUnavailableError(f"unsupported MODEL_PROFILE: {settings.profile}")
 
 
@@ -927,9 +959,7 @@ def build_tracker(
     track_scope: str = "session",
 ):
     settings = settings or settings_from_env()
-    selected = (profile or os.getenv("TRACKER_PROFILE", "centroid")).strip().lower()
-    if selected == "bytetrack":
-        return ByteTrackTracker(track_scope=track_scope)
+    selected = (profile or os.getenv("TRACKER_PROFILE", "sam" if settings.profile in {"sam", "sam3.1", "sam2"} else "centroid")).strip().lower()
     if selected in {"sam", "sam3.1", "sam2"}:
         return SAMTracker(track_scope=track_scope)
     from .pipeline import CentroidTracker
@@ -941,13 +971,10 @@ def model_capabilities(settings: ModelSettings | None = None) -> dict[str, Any]:
     import importlib.util
 
     settings = settings or settings_from_env()
-    yolo_checkpoint = bool(settings.yolo_model and Path(settings.yolo_model).expanduser().exists())
     sam_checkpoint = bool(settings.sam_model and Path(settings.sam_model).expanduser().exists())
     qwen_checkpoint = bool(settings.qwen_model and Path(settings.qwen_model).expanduser().exists())
     siglip_checkpoint = bool(settings.siglip_model and Path(settings.siglip_model).expanduser().exists())
     bge_checkpoint = bool(settings.bge_model and Path(settings.bge_model).expanduser().exists())
-    yolo_runtime = importlib.util.find_spec("ultralytics") is not None
-    bytetrack_runtime = importlib.util.find_spec("supervision") is not None
     transformer_runtime = importlib.util.find_spec("transformers") is not None
     sentence_runtime = importlib.util.find_spec("sentence_transformers") is not None
     meta_api_configured = bool(settings.meta_api_key)
@@ -955,7 +982,7 @@ def model_capabilities(settings: ModelSettings | None = None) -> dict[str, Any]:
 
     capabilities: dict[str, Any] = {
         "profile": settings.profile,
-        "detector": "sam-3.1" if settings.profile in {"sam", "sam3.1", "sam2"} else ("yolo" if settings.profile == "yolo" else "bright-blob-baseline"),
+        "detector": "sam-3.1" if settings.profile in {"sam", "sam3.1", "sam2"} else "bright-blob-baseline",
         "tracker": os.getenv("TRACKER_PROFILE", "sam" if settings.profile in {"sam", "sam3.1"} else "centroid"),
         "chat_model": settings.meta_model if chat_mode in {"meta", "muse", "muse-spark-1.3"} else settings.qwen_model,
         "available": True,
@@ -966,23 +993,12 @@ def model_capabilities(settings: ModelSettings | None = None) -> dict[str, Any]:
                 "label": "Meta SAM 3.1 (Segment Anything + Detection)",
                 "checkpoint_configured": sam_checkpoint,
             },
-            "yolo": {
-                "available": yolo_runtime and yolo_checkpoint,
-                "runtime_installed": yolo_runtime,
-                "checkpoint_configured": yolo_checkpoint,
-                "label": "YOLO local checkpoint",
-            },
         },
         "trackers": {
             "centroid": {"available": True, "label": "Centroid tracker"},
             "sam": {
                 "available": True,
                 "label": "Meta SAM 3.1 Video Tracker",
-            },
-            "bytetrack": {
-                "available": bytetrack_runtime,
-                "runtime_installed": bytetrack_runtime,
-                "label": "ByteTrack runtime",
             },
         },
         "embeddings": {
@@ -1008,7 +1024,4 @@ def model_capabilities(settings: ModelSettings | None = None) -> dict[str, Any]:
             "label": "Meta Muse Spark 1.3" if meta_api_configured else "Qwen",
         },
     }
-    if settings.profile == "yolo" and not settings.yolo_model:
-        capabilities["available"] = False
-        capabilities["reason"] = "YOLO_MODEL is not configured"
     return capabilities

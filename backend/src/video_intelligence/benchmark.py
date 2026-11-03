@@ -136,6 +136,13 @@ def _settings_for_manifest(manifest: ModelManifest, base: ModelSettings, *, dete
         siglip_model=str(visual_spec.checkpoint) if visual_spec and visual_spec.checkpoint else base.siglip_model,
         bge_model=str(text_spec.checkpoint) if text_spec and text_spec.checkpoint else base.bge_model,
         qwen_model=str(chat_spec.checkpoint) if chat_spec and chat_spec.checkpoint else base.qwen_model,
+        meta_api_key=base.meta_api_key,
+        meta_api_url=base.meta_api_url,
+        meta_model=base.meta_model,
+        baseten_api_key=base.baseten_api_key,
+        baseten_sam_endpoint=base.baseten_sam_endpoint,
+        baseten_siglip_endpoint=base.baseten_siglip_endpoint,
+        baseten_bge_endpoint=base.baseten_bge_endpoint,
         model_cache=base.model_cache,
     )
 
@@ -235,6 +242,13 @@ def run_gpu_benchmark(
         siglip_model=settings.siglip_model,
         bge_model=settings.bge_model,
         qwen_model=settings.qwen_model,
+        meta_api_key=settings.meta_api_key,
+        meta_api_url=settings.meta_api_url,
+        meta_model=settings.meta_model,
+        baseten_api_key=settings.baseten_api_key,
+        baseten_sam_endpoint=settings.baseten_sam_endpoint,
+        baseten_siglip_endpoint=settings.baseten_siglip_endpoint,
+        baseten_bge_endpoint=settings.baseten_bge_endpoint,
         model_cache=settings.model_cache,
     )
     try:

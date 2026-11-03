@@ -59,6 +59,10 @@ def default_component_factory(options: ProcessingOptions, scope: str) -> tuple[D
         meta_api_key=environment.meta_api_key,
         meta_api_url=environment.meta_api_url,
         meta_model=environment.meta_model,
+        baseten_api_key=environment.baseten_api_key,
+        baseten_sam_endpoint=environment.baseten_sam_endpoint,
+        baseten_siglip_endpoint=environment.baseten_siglip_endpoint,
+        baseten_bge_endpoint=environment.baseten_bge_endpoint,
         model_cache=environment.model_cache,
     )
     detector = build_detector(settings)
@@ -302,7 +306,17 @@ class CameraStreamMonitoringWorker:
                     new_events: list[dict[str, Any]] = []
                     if effective_zones:
                         comparison = (previous, observation) if previous is not None else (observation,)
-                        for event in generate_zone_events(comparison, effective_zones):
+                        generated_events = generate_zone_events(comparison, effective_zones)
+                        # ``generate_zone_events`` intentionally treats the
+                        # first observation in a sequence as an initial state.
+                        # In a live loop the previous frame is included only
+                        # to calculate a transition, so discard the synthetic
+                        # initial-state event emitted for that repeated frame.
+                        if previous is not None:
+                            generated_events = tuple(
+                                event for event in generated_events if event.timestamp_seconds == timestamp
+                            )
+                        for event in generated_events:
                             new_events.append({**event.__dict__, "track_scope": scope})
                     previous = observation
                     recent_observations.append(observation)

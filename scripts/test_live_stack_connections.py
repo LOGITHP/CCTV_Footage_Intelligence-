@@ -3,17 +3,38 @@
 Tests all active service credentials and model endpoints before container deployment.
 """
 
-import base64
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 
+def _required(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"{name} is not configured")
+    return value
+
+
+def _read_json(request: urllib.request.Request, *, attempts: int = 3) -> dict:
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+            last_error = error
+            if attempt + 1 < attempts:
+                time.sleep(0.5 * (attempt + 1))
+    raise RuntimeError(f"request failed after {attempts} attempts: {last_error}") from last_error
+
+
 def test_meta_sam():
     print("[1/5] Testing Meta API for SAM 3.1...")
-    meta_key = os.getenv("META_API_KEY", "LLM_953135614536411_MGNsLLKsiV1PptUKrlzmzf9cLMg")
+    meta_key = _required("META_API_KEY")
     meta_url = os.getenv("META_API_URL", "https://api.meta.ai/v1")
 
     # 1. Check model list
@@ -21,11 +42,10 @@ def test_meta_sam():
         f"{meta_url}/models",
         headers={"Authorization": f"Bearer {meta_key}"},
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        model_ids = [m.get("id") for m in data.get("data", [])]
-        assert "sam-3.1" in model_ids, f"sam-3.1 not found in models: {model_ids}"
-        print(f"  [PASS] Found sam-3.1 on Meta API (available models: {len(model_ids)})")
+    data = _read_json(req)
+    model_ids = [m.get("id") for m in data.get("data", data.get("models", []))]
+    assert "sam-3.1" in model_ids, f"sam-3.1 not found in models: {model_ids}"
+    print(f"  [PASS] Found sam-3.1 on Meta API (available models: {len(model_ids)})")
 
     # 2. Test response endpoint with synthetic 1x1 image
     b64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -47,16 +67,15 @@ def test_meta_sam():
         headers={"Authorization": f"Bearer {meta_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req2, timeout=15) as resp:
-        res = json.loads(resp.read().decode("utf-8"))
-        assert res.get("status") == "completed"
-        assert res.get("model") == "sam-3.1"
-        print("  [PASS] Successfully invoked SAM 3.1 on Meta Direct API (status=completed)")
+    res = _read_json(req2)
+    assert res.get("status") == "completed", f"SAM request did not complete: {res}"
+    assert res.get("model") == "sam-3.1", f"SAM returned an unexpected model: {res.get('model')}"
+    print("  [PASS] Successfully invoked SAM 3.1 on Meta Direct API (status=completed)")
 
 
 def test_baseten_spark_llm():
     print("[2/5] Testing Baseten Inference for Meta Muse Spark Open...")
-    b10_key = os.getenv("BASETEN_API_KEY", "b10_nVtchD9y.qWy7Pmz8Glauaka2Z1A4Tlrwr4dQy5gL")
+    b10_key = _required("BASETEN_API_KEY")
     b10_url = os.getenv("BASETEN_INFERENCE_URL", "https://inference.baseten.co/v1")
     model = os.getenv("META_MODEL", "meta-models/muse-spark-open-1026")
 
@@ -75,19 +94,21 @@ def test_baseten_spark_llm():
         headers={"Authorization": f"Bearer {b10_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        choice = data["choices"][0]["message"]
-        content = choice.get("content") or choice.get("reasoning_content") or ""
-        print(f"  [PASS] Baseten Muse Spark Open responded: {content.strip()[:60]!r}")
+    data = _read_json(req)
+    choices = data.get("choices") or []
+    assert choices and isinstance(choices[0].get("message"), dict), "Baseten returned no chat choice"
+    choice = choices[0]["message"]
+    content = choice.get("content") or choice.get("reasoning_content") or ""
+    assert content.strip(), "Baseten returned an empty chat response"
+    print(f"  [PASS] Baseten Muse Spark Open responded: {content.strip()[:60]!r}")
 
 
 def test_supabase_postgres():
     print("[3/5] Testing Supabase PostgreSQL Database...")
     import psycopg
 
-    db_url = os.getenv("DATABASE_URL")
-    clean_url = db_url.replace("postgresql+psycopg://", "postgresql://")
+    db_url = _required("DATABASE_URL")
+    clean_url = db_url.replace("postgresql+psycopg://", "postgresql://", 1)
     with psycopg.connect(clean_url) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
@@ -98,32 +119,40 @@ def test_supabase_postgres():
 
 def test_qdrant_cloud():
     print("[4/5] Testing Qdrant Cloud Vector Database...")
-    qdrant_url = os.getenv("QDRANT_URL")
+    qdrant_url = _required("QDRANT_URL")
     qdrant_key = os.getenv("QDRANT_API_KEY")
 
-    req = urllib.request.Request(
-        f"{qdrant_url}/collections",
-        headers={"api-key": qdrant_key},
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        cols = [c["name"] for c in data.get("result", {}).get("collections", [])]
-        print(f"  [PASS] Qdrant Cloud connected! Collections: {cols}")
+    headers = {"api-key": qdrant_key} if qdrant_key else {}
+    req = urllib.request.Request(f"{qdrant_url}/collections", headers=headers)
+    data = _read_json(req)
+    cols = [c["name"] for c in data.get("result", {}).get("collections", [])]
+    print(f"  [PASS] Qdrant connected! Collections: {cols}")
 
 
 def test_minio_configuration():
     print("[5/5] Testing MinIO Object Storage Configuration...")
-    backend = os.getenv("OBJECT_STORAGE_BACKEND", "minio")
+    backend = os.getenv("OBJECT_STORAGE_BACKEND", "local").strip().lower()
     endpoint = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
     bucket = os.getenv("MINIO_BUCKET", "video-intelligence")
-    access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    secret_key = os.getenv("MINIO_SECRET_KEY", "minioadminpassword123")
+    if backend == "local":
+        print("  [PASS] Local filesystem object storage selected; MinIO connectivity is not required.")
+        return
+    access_key = _required("MINIO_ACCESS_KEY")
+    secret_key = _required("MINIO_SECRET_KEY")
+    try:
+        import boto3
 
-    print(f"  [PASS] MinIO configured for local S3 object storage:")
-    print(f"    - Backend: {backend}")
-    print(f"    - Endpoint: {endpoint}")
-    print(f"    - Bucket: {bucket}")
-    print(f"    - Access Key: {access_key[:4]}***")
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=os.getenv("S3_REGION", "us-east-1"),
+        )
+        client.head_bucket(Bucket=bucket)
+    except Exception as error:
+        raise RuntimeError(f"object storage connectivity failed: {error}") from error
+    print(f"  [PASS] S3-compatible object storage connected: endpoint={endpoint}, bucket={bucket}")
 
 
 def load_env_file():
@@ -143,17 +172,20 @@ if __name__ == "__main__":
     print("==================================================")
     print("  MULTI-STREAM VIDEO INTELLIGENCE STACK AUDIT     ")
     print("==================================================")
-    try:
-        test_meta_sam()
-        test_baseten_spark_llm()
-        test_supabase_postgres()
-        test_qdrant_cloud()
-        test_minio_configuration()
+    checks = (test_meta_sam, test_baseten_spark_llm, test_supabase_postgres, test_qdrant_cloud, test_minio_configuration)
+    failures = []
+    for check in checks:
+        try:
+            check()
+        except Exception as error:
+            failures.append((check.__name__, error))
+            print(f"  [FAIL] {check.__name__}: {error}")
+    if not failures:
         print("==================================================")
         print("  ALL SERVICES & ENDPOINTS VERIFIED OPERATIONAL!  ")
         print("==================================================")
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"\n[FAIL] Verification failed: {e}")
+    else:
+        print("==================================================")
+        print(f"  STACK AUDIT FAILED ({len(failures)} check(s))                ")
+        print("==================================================")
         sys.exit(1)

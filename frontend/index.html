@@ -108,18 +108,24 @@
         <span>＋</span><span>New Capture</span>
       </button>
 
-      <div class="nav-section-label">SURVEILLANCE OPERATIONS</div>
+      <div class="nav-section-label">LIVE SURVEILLANCE</div>
       <nav class="side-nav">
-        <button class="nav-item active" data-view="overview" title="Operations Hub"><span class="nav-ico">⌂</span><span>Operations Hub</span></button>
         <button class="nav-item" data-view="camera" title="Live Video Matrix"><span class="nav-ico">◉</span><span>Live Video Matrix</span></button>
-        <button class="nav-item" data-view="monitoring" title="Camera Provisioning"><span class="nav-ico">▦</span><span>Camera Provisioning</span></button>
-        <button class="nav-item" data-view="evidence" title="Forensic Workbench"><span class="nav-ico">▤</span><span>Forensic Workbench</span></button>
-        <button class="nav-item" data-view="assistant" title="AI Copilot (LangGraph)"><span class="nav-ico">✦</span><span>AI Copilot (LangGraph)</span></button>
-        <button class="nav-item" data-view="alerts" title="Security Rules"><span class="nav-ico">!</span><span>Security Rules</span></button>
+        <button class="nav-item" data-view="monitoring" title="Camera Streams & Fleet"><span class="nav-ico">▦</span><span>Camera Streams</span></button>
+        <button class="nav-item" data-view="alerts" title="Perimeter Rules & Tripwires"><span class="nav-ico">!</span><span>Perimeter Rules</span></button>
+        <button class="nav-item" data-view="live-copilot" title="Live Stream Copilot"><span class="nav-ico">✦</span><span>Live Stream Copilot</span></button>
+      </nav>
+
+      <div class="nav-section-label nav-section-label-secondary">RECORDED & UPLOADED FOOTAGE</div>
+      <nav class="side-nav">
+        <button class="nav-item" data-view="evidence" title="Upload & Workbench"><span class="nav-ico">▤</span><span>Upload & Workbench</span></button>
+        <button class="nav-item" data-view="forensic-copilot" title="Forensic Copilot"><span class="nav-ico">✦</span><span>Forensic Copilot</span></button>
+        <button class="nav-item" data-view="storage-vault" title="Storage Vault"><span class="nav-ico">🗄</span><span>Storage Vault</span></button>
       </nav>
 
       <div class="nav-section-label nav-section-label-secondary">SYSTEM</div>
       <nav class="side-nav side-nav-secondary">
+        <button class="nav-item active" data-view="overview" title="Operations Hub"><span class="nav-ico">⌂</span><span>Operations Hub</span></button>
         <button class="nav-item" data-view="settings" title="Configuration"><span class="nav-ico">⚙</span><span>Configuration</span></button>
       </nav>
 
@@ -575,14 +581,12 @@
                     <select id="model-profile">
                       <option value="sam" selected>Meta SAM 3.1 (Segment + Detect) · Active</option>
                       <option value="baseline">Baseline Bright-Blob · Active</option>
-                      <option value="yolo">YOLO Detection Checkpoint</option>
                     </select>
                   </label>
                   <label>Track Engine
                     <select id="tracker-profile">
                       <option value="sam" selected>Meta SAM 3.1 Video Tracker · Active</option>
                       <option value="centroid">Centroid Tracker · Active</option>
-                      <option value="bytetrack">ByteTrack Deep Sort</option>
                     </select>
                   </label>
                 </div>
@@ -657,15 +661,15 @@
           </article>
         </section>
 
-        <!-- 5. AI FORENSIC ASSISTANT VIEW -->
-        <section class="view" data-view-panel="assistant">
+        <!-- 5. AI FORENSIC COPILOT VIEW -->
+        <section class="view" data-view-panel="forensic-copilot">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">INVESTIGATIVE COPILOT</p>
-              <h2>LangGraph Forensic Intelligence Agent</h2>
-              <p class="muted">Natural language forensic queries grounded strictly in persisted events. Powered by Meta Muse Spark 1.3 with automated evidence clip generation.</p>
+              <p class="eyebrow">FORENSIC ARCHIVE COPILOT</p>
+              <h2>Pre-Recorded CCTV & Uploaded Footage Analysis</h2>
+              <p class="muted">Natural language forensic queries grounded strictly in uploaded footage and SAM 3.1 track trajectories, with automated evidence clip generation.</p>
             </div>
-            <span class="vms-agent-pill"><span class="blink-dot"></span>LANGGRAPH REASONING ACTIVE</span>
+            <span class="vms-agent-pill"><span class="blink-dot"></span>SAM 3.1 & MUSE REASONING ACTIVE</span>
           </div>
 
           <div class="assistant-layout">
@@ -673,7 +677,7 @@
               <div class="chat-panel-heading">
                 <div>
                   <p class="eyebrow">CONVERSATION STREAM</p>
-                  <h3>Investigative Copilot</h3>
+                  <h3>Forensic Archive Copilot</h3>
                 </div>
                 <div class="chat-hud-badges">
                   <span class="hud-tag">Meta Muse Spark 1.3</span>
@@ -684,29 +688,29 @@
               <div id="chat-history" class="chat-history">
                 <div class="chat-empty">
                   <span class="chat-empty-mark">✦</span>
-                  <strong>Ask any investigative question about your footage</strong>
-                  <small>The LangGraph agent plans hypotheses, queries Supabase and Qdrant, verifies evidence, trims the relevant video clip, and provides grounded citations.</small>
+                  <strong>Ask any investigative question about your uploaded footage</strong>
+                  <small>The Forensic Copilot analyzes SAM 3.1 track observations, dwell times, and perimeter events, generating downloadable MP4 evidence clips.</small>
                 </div>
               </div>
 
               <div class="chat-suggestions" aria-label="Suggested questions">
-                <button type="button" data-chat-suggestion="Who entered the restricted perimeter zone?">🚨 Perimeter breaches</button>
-                <button type="button" data-chat-suggestion="What happened in the latest recording?">📹 Latest recording recap</button>
+                <button type="button" data-chat-suggestion="Tell me about this footage in detail">📹 Tell me about this footage</button>
                 <button type="button" data-chat-suggestion="Summarize all detected vehicle and person tracks">🚗 Vehicle & person tracks</button>
+                <button type="button" data-chat-suggestion="What happened in the latest recording?">⏱️ Chronological timeline</button>
                 <button type="button" data-chat-suggestion="Were there any loitering or dwelling anomalies?">⏱️ Loitering analysis</button>
               </div>
 
               <form id="chat-form" class="chat-form">
                 <div class="field-grid">
-                  <label>Camera / Zone Scope <span class="muted">optional</span>
-                    <input id="chat-camera-id" placeholder="e.g. zone-1 or cam-front-gate">
+                  <label>Target Zone Scope <span class="muted">optional</span>
+                    <input id="chat-camera-id" placeholder="e.g. zone-1">
                   </label>
-                  <label>Video / Session Scope <span class="muted">optional</span>
-                    <input id="chat-session-id" placeholder="e.g. video UUID or session-live">
+                  <label>Video / Session Identifier <span class="muted">optional</span>
+                    <input id="chat-session-id" placeholder="e.g. video UUID or session ID">
                   </label>
                 </div>
                 <div class="chat-composer">
-                  <textarea id="chat-question" rows="3" required placeholder="Ask about events, vehicles, people, or zone crossings…"></textarea>
+                  <textarea id="chat-question" rows="3" required placeholder="Ask about events, vehicles, people, or zone crossings in the footage…"></textarea>
                   <button class="button primary composer-submit" type="submit" aria-label="Ask with evidence">↑</button>
                 </div>
               </form>
@@ -717,13 +721,165 @@
               <p class="eyebrow">VERIFICATION</p>
               <h3>Forensic Protocol</h3>
               <ul class="clean-list">
-                <li><strong>Relational & Vector Grounding:</strong> Hypotheses are tested directly against PostgreSQL event records and Qdrant visual embeddings.</li>
-                <li><strong>Self-Correcting Reflection:</strong> If zero matches are found, LangGraph automatically relaxes filters and re-evaluates.</li>
+                <li><strong>Relational & Vector Grounding:</strong> Hypotheses are tested directly against PostgreSQL track records and SAM 3.1 observations.</li>
+                <li><strong>Self-Correcting Reflection:</strong> If zero matches are found, the agent automatically relaxes filters and inspects track trajectories.</li>
                 <li><strong>Automated Evidence Trimming:</strong> When events are identified, exact $\pm 4.0\text{s}$ MP4 clips are trimmed and embedded in chat.</li>
-                <li><strong>Zero Speculation:</strong> Missing evidence produces an explicit verification statement.</li>
+                <li><strong>Zero Speculation:</strong> Missing evidence produces an explicit verification limitation statement.</li>
               </ul>
             </aside>
           </div>
+        </section>
+
+        <!-- 5B. LIVE STREAM COPILOT VIEW -->
+        <section class="view" data-view-panel="live-copilot">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">REAL-TIME SURVEILLANCE COPILOT</p>
+              <h2>Live Stream & Perimeter Fleet Copilot</h2>
+              <p class="muted">Real-time situational intelligence across active RTSP camera streams, perimeter tripwires, and live intrusion alerts. Powered by Meta Muse Spark 1.3.</p>
+            </div>
+            <span class="vms-agent-pill"><span class="blink-dot"></span>LIVE MONITORING ACTIVE</span>
+          </div>
+
+          <div class="assistant-layout">
+            <article class="panel chat-panel">
+              <div class="chat-panel-heading">
+                <div>
+                  <p class="eyebrow">LIVE STREAM ASSISTANT</p>
+                  <h3>Live Surveillance Guard</h3>
+                </div>
+                <div class="chat-hud-badges">
+                  <span class="hud-tag">Meta Muse Spark 1.3</span>
+                  <span class="assistant-badge">Zero Hallucination Grounded</span>
+                </div>
+              </div>
+
+              <div id="live-chat-history" class="chat-history">
+                <div class="chat-empty">
+                  <span class="chat-empty-mark">✦</span>
+                  <strong>Live Camera Matrix & Tripwire Intelligence</strong>
+                  <small>Ask about live camera statuses, active perimeter breaches, stream latency, or armed tripwires. Responses are strictly grounded in verified camera telemetry.</small>
+                </div>
+              </div>
+
+              <div class="chat-suggestions" aria-label="Live suggestions">
+                <button type="button" data-live-chat-suggestion="Are there any active perimeter breaches or tripwire alarms?">🚨 Active breaches</button>
+                <button type="button" data-live-chat-suggestion="What is the health and online status of all camera streams?">📡 Camera fleet health</button>
+                <button type="button" data-live-chat-suggestion="Show the current surveillance status for Channel 1">🎥 Channel 1 real-time status</button>
+                <button type="button" data-live-chat-suggestion="What perimeter defense rules and tripwires are actively armed?">🛡️ Armed tripwire rules</button>
+              </div>
+
+              <form id="live-chat-form" class="chat-form">
+                <div class="field-grid">
+                  <label>Camera Channel Scope <span class="muted">optional</span>
+                    <input id="live-chat-camera-id" placeholder="e.g. cam-front-gate, ch-01">
+                  </label>
+                  <label>Session Scope <span class="muted">optional</span>
+                    <input id="live-chat-session-id" placeholder="e.g. session-live">
+                  </label>
+                </div>
+                <div class="chat-composer">
+                  <textarea id="live-chat-question" rows="3" required placeholder="Ask about live camera streams, real-time intrusion alarms, or fleet health…"></textarea>
+                  <button class="button primary composer-submit" type="submit" aria-label="Ask live copilot">↑</button>
+                </div>
+              </form>
+              <div id="live-chat-status" class="form-status"></div>
+            </article>
+
+            <aside class="panel grounding-panel">
+              <p class="eyebrow">LIVE FLEET PROTOCOL</p>
+              <h3>Surveillance Guard Directives</h3>
+              <ul class="clean-list">
+                <li><strong>Stream Fleet Telemetry:</strong> Evaluates live camera registries, RTSP stream connectivity, and active frame ingress.</li>
+                <li><strong>Real-Time Intrusion Alerting:</strong> Correlates tripwire crossings and boundary infractions without operator delay.</li>
+                <li><strong>Multi-Channel Inspection:</strong> Cross-checks perimeter rules against camera configurations.</li>
+                <li><strong>Zero Speculation:</strong> Strictly verified facts; missing camera telemetry is explicitly identified.</li>
+              </ul>
+            </aside>
+          </div>
+        </section>
+
+        <!-- 5C. SEPARATED STORAGE VAULT VIEW -->
+        <section class="view" data-view-panel="storage-vault">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">STORAGE & RETENTION</p>
+              <h2>Separated Surveillance Storage Vault</h2>
+              <p class="muted">Strictly separated storage lifecycle for uploaded operator recordings vs live RTSP camera recordings and trimmed forensic evidence clips.</p>
+            </div>
+            <div class="button-row">
+              <button id="storage-refresh" class="button primary" type="button"><span>↻</span> Refresh Storage</button>
+            </div>
+          </div>
+          <div id="storage-status" class="form-status" role="status" aria-live="polite"></div>
+
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <span class="metric-title">Uploaded Footage Vault</span>
+              <span id="storage-uploads-size" class="metric-value">0.0 MB</span>
+              <span id="storage-uploads-count" class="metric-sub">0 video files</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-title">Live Streams & Snapshots</span>
+              <span id="storage-live-size" class="metric-value">0.0 MB</span>
+              <span id="storage-live-count" class="metric-sub">0 recording chunks</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-title">Forensic Evidence Clips</span>
+              <span id="storage-evidence-size" class="metric-value">0.0 MB</span>
+              <span id="storage-evidence-count" class="metric-sub">0 trimmed clips</span>
+            </div>
+          </div>
+
+          <div class="monitoring-grid" style="margin-top:20px;">
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">UPLOADED OPERATOR MEDIA</p><h3>Pre-Recorded CCTV Footage Vault</h3><p class="panel-subcopy">Stored in <code>data/media/uploads/</code></p></div>
+              </div>
+              <div class="table-container" style="max-height: 380px; overflow-y: auto;">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Filename</th><th>Size</th><th>Uploaded Date</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody id="storage-uploads-table">
+                    <tr><td colspan="4" class="empty">Loading uploaded footage…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="eyebrow">LIVE SURVEILLANCE MEDIA</p><h3>Live Stream Recordings & Snapshots Vault</h3><p class="panel-subcopy">Stored in <code>data/media/live_streams/</code></p></div>
+              </div>
+              <div class="table-container" style="max-height: 380px; overflow-y: auto;">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Filename</th><th>Size</th><th>Recorded Date</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody id="storage-live-table">
+                    <tr><td colspan="4" class="empty">Loading live stream recordings…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel" style="margin-top:20px;">
+            <div class="panel-header">
+              <div><p class="eyebrow">EVIDENCE REPOSITORY</p><h3>Trimmed Forensic Incident Clips</h3><p class="panel-subcopy">Stored in <code>data/media/evidence/</code></p></div>
+            </div>
+            <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Clip Filename</th><th>Size</th><th>Generated Date</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="storage-evidence-table">
+                  <tr><td colspan="4" class="empty">Loading trimmed evidence clips…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <!-- 6. SECURITY ALERTS VIEW -->

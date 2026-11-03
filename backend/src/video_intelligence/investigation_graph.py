@@ -136,10 +136,15 @@ def node_retrieve_evidence(state: InvestigationGraphState) -> dict[str, Any]:
             event_type=plan_dict.get("event_type"),
         )
 
-        # Fallback to track observations if 0 events found for a video
-        if not matches and video_id and hasattr(store, "search_tracks"):
-            tracks = store.search_tracks(video_id=video_id)
+        # Fallback to track observations if 0 events found for a video or session
+        if not matches and (video_id or session_id) and hasattr(store, "search_tracks"):
+            lookup_id = video_id or session_id
+            tracks = store.search_tracks(video_id=lookup_id)
+            if not tracks:
+                tracks = store.search_tracks(track_scope=lookup_id)
             if tracks:
+                if plan_dict.get("object_label"):
+                    tracks = [t for t in tracks if (t.get("object_label") or "").lower() == plan_dict["object_label"].lower()]
                 track_groups: dict[str, list[dict[str, Any]]] = {}
                 for t in tracks:
                     tid = str(t.get("track_id") or "unknown")
@@ -154,9 +159,9 @@ def node_retrieve_evidence(state: InvestigationGraphState) -> dict[str, Any]:
                     cat = first_obs.get("object_category") or label
                     matches.append({
                         "event_id": f"trk-{tid}",
-                        "video_id": video_id,
+                        "video_id": lookup_id,
                         "event_type": "tracked",
-                        "zone_id": plan_dict.get("zone_id") or "camera-view",
+                        "zone_id": plan_dict.get("zone_id") or "zone-1",
                         "object_id": tid,
                         "object_label": label,
                         "object_category": cat,

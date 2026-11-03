@@ -16,9 +16,11 @@ from .notifications import (
     NotificationDispatcher,
     NotificationMessage,
     NotificationWorker,
+    TelegramNotifier,
     WebhookNotifier,
     build_notification_worker,
 )
+from .telegram import TelegramBotClient, TelegramBotService
 from .outbox import OutboxStore, ReconciliationService
 from .processing import ProcessingOptions, UploadedVideoProcessor
 from .retention import RetentionService
@@ -38,6 +40,9 @@ __all__ = [
     "NotificationDispatcher",
     "NotificationMessage",
     "NotificationWorker",
+    "TelegramBotClient",
+    "TelegramBotService",
+    "TelegramNotifier",
     "ProcessingOptions",
     "RetentionService",
     "OutboxStore",

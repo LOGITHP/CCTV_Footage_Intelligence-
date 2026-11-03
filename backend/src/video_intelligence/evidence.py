@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
-from .privacy import PrivacyError, PrivacyPolicy, detect_face_regions, redact_video
+from .privacy import PrivacyPolicy, detect_face_regions, redact_video
 
 
 class EvidenceError(RuntimeError):

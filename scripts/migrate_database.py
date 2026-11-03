@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import sys
 import urllib.parse
 import psycopg
 
@@ -35,11 +34,13 @@ def get_database_url() -> str:
     if url:
         return url
     
-    host = os.getenv("DB_HOST", "db.iprbivrwcicogcjxzylr.supabase.co")
+    host = os.getenv("DB_HOST", "").strip()
     port = os.getenv("DB_PORT", "5432")
     user = os.getenv("DB_USER", "postgres")
-    password = os.getenv("DB_PASSWORD", "Plogithh@200855")
+    password = os.getenv("DB_PASSWORD", "")
     db_name = os.getenv("DB_NAME", "postgres")
+    if not host or not password:
+        raise RuntimeError("DATABASE_URL or DB_HOST plus DB_PASSWORD must be configured")
     
     encoded_pw = urllib.parse.quote(password)
     return f"postgresql://{user}:{encoded_pw}@{host}:{port}/{db_name}?sslmode=require"
