@@ -135,3 +135,29 @@ def test_telegram_webhook_requires_secret_and_dispatches_update(monkeypatch):
     )
     assert response.status_code == 200
     assert response.json() == {"status": "responded", "update_id": 9}
+
+
+def test_telegram_bot_client_send_photo():
+    from video_intelligence.operations.telegram import TelegramBotClient
+
+    calls = []
+
+    def mock_request(url, body, headers, timeout):
+        calls.append((url, body, headers, timeout))
+        return 200, b'{"ok": true, "result": {"message_id": 123}}'
+
+    client = TelegramBotClient("test-bot-token", request=mock_request)
+
+    # 1. Send photo via URL
+    res_url = client.send_photo("42", "https://example.com/snapshot.jpg", caption="Live Evidence")
+    assert res_url["ok"] is True
+    assert "/sendPhoto" in calls[0][0]
+    assert calls[0][2]["Content-Type"] == "application/json"
+
+    # 2. Send photo via Bytes
+    test_jpeg_bytes = b"\xff\xd8\xff\xe0testjpegdata\xff\xd9"
+    res_bytes = client.send_photo("42", test_jpeg_bytes, caption="Frame Evidence")
+    assert res_bytes["ok"] is True
+    assert "/sendPhoto" in calls[1][0]
+    assert "multipart/form-data" in calls[1][2]["Content-Type"]
+    assert b"testjpegdata" in calls[1][1]

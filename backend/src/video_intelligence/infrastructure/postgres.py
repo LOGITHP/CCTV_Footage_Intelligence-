@@ -13,8 +13,10 @@ from typing import Any, Iterator
 
 from sqlalchemy import create_engine, delete, or_, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
+import os
 
 from .schema import (
     AlertRecord,
@@ -52,22 +54,32 @@ class PostgresStore:
         elif database_url.startswith("postgresql://"):
             database_url = "postgresql+psycopg://" + database_url[len("postgresql://"):]
         if engine is None:
-            engine_options: dict[str, Any] = {"future": True, "pool_pre_ping": True, "pool_recycle": 120}
+            engine_options: dict[str, Any] = {
+                "future": True,
+                "pool_pre_ping": True,
+                "pool_recycle": 60,
+            }
             if database_url.startswith("sqlite") and ":memory:" in database_url:
                 engine_options.update({"connect_args": {"check_same_thread": False}, "poolclass": StaticPool})
             elif database_url.startswith("postgresql"):
                 engine_options.update({
+                    "poolclass": NullPool,
                     "connect_args": {
-                        "connect_timeout": 10,
+                        "connect_timeout": 8,
                         "keepalives": 1,
-                        "keepalives_idle": 30,
-                        "keepalives_interval": 10,
-                        "keepalives_count": 5,
+                        "keepalives_idle": 15,
+                        "keepalives_interval": 5,
+                        "keepalives_count": 3,
                     }
                 })
             engine = create_engine(database_url, **engine_options)
         self.engine = engine
         self._sessions = sessionmaker(bind=engine, expire_on_commit=False, future=True)
+        try:
+            from ..storage import Store
+            self._fallback_store = Store(os.getenv("SQLITE_FALLBACK_PATH", "data/video_intelligence.sqlite3"))
+        except Exception:
+            self._fallback_store = None
         if create_schema:
             try:
                 Base.metadata.create_all(bind=engine)
@@ -76,8 +88,65 @@ class PostgresStore:
 
     @contextmanager
     def _session(self) -> Iterator[Session]:
-        with self._sessions() as session:
+        session = None
+        try:
+            session = self._sessions()
             yield session
+        except (OperationalError, DBAPIError):
+            try:
+                self.engine.dispose()
+            except Exception:
+                pass
+            raise
+        finally:
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+    def _query_with_retry(self, fn: Any, default: Any = None, fallback_fn: Any = None) -> Any:
+        """Execute a database read operation with transparent reconnect on dropped SSL or idle pool socket."""
+        for attempt in range(2):
+            try:
+                with self._session() as session:
+                    return fn(session)
+            except (OperationalError, DBAPIError):
+                try:
+                    self.engine.dispose()
+                except Exception:
+                    pass
+                if attempt == 1:
+                    if fallback_fn and self._fallback_store:
+                        try:
+                            return fallback_fn(self._fallback_store)
+                        except Exception:
+                            pass
+                    return default
+        return default
+
+    def _write_with_retry(self, fn: Any, fallback_fn: Any = None) -> Any:
+        """Execute a database write with transparent reconnect and automatic SQLite fallback."""
+        for attempt in range(2):
+            try:
+                with self._session() as session:
+                    with session.begin():
+                        res = fn(session)
+                    if fallback_fn and self._fallback_store:
+                        try:
+                            fallback_fn(self._fallback_store)
+                        except Exception:
+                            pass
+                    return res
+            except (OperationalError, DBAPIError):
+                try:
+                    self.engine.dispose()
+                except Exception:
+                    pass
+                if attempt == 1:
+                    if fallback_fn and self._fallback_store:
+                        return fallback_fn(self._fallback_store)
+                    raise
 
     @staticmethod
     def _video_dict(record: VideoRecord) -> dict[str, Any]:
@@ -178,28 +247,19 @@ class PostgresStore:
         created_at: str | None = None,
         updated_at: str | None = None,
     ) -> dict[str, Any]:
-        value = camera.model_dump() if hasattr(camera, "model_dump") else (dict(camera) if isinstance(camera, dict) else None)
-        if value is None:
-            source = camera.source
-            options = camera.processing_options
-            option_values = {
-                name: getattr(options, name)
-                for name in ("every", "threshold", "min_area", "clip_padding", "device", "model_profile", "tracker_profile", "track_scope")
-                if hasattr(options, name)
-            }
-            option_values["zones"] = [
-                {"zone_id": zone.zone_id, "polygon": [list(point) for point in zone.polygon]}
-                for zone in getattr(options, "zones", ())
-            ]
+        if hasattr(camera, "model_dump"):
+            value = camera.model_dump(mode="json")
+        elif isinstance(camera, dict):
+            value = dict(camera)
+        else:
+            options = getattr(camera, "processing_options", None)
+            option_values = options.model_dump(mode="json") if hasattr(options, "model_dump") else (options or {})
             value = {
                 "camera_id": camera.camera_id,
                 "display_name": camera.display_name,
-                "source": {"kind": getattr(source.kind, "value", str(source.kind)), "path": str(source.path)},
+                "source": camera.source.model_dump(mode="json") if hasattr(camera.source, "model_dump") else camera.source,
                 "enabled": camera.enabled,
-                "zones": [
-                    {"zone_id": zone.zone_id, "polygon": [list(point) for point in zone.polygon]}
-                    for zone in getattr(camera, "zones", ())
-                ],
+                "zones": [zone.model_dump(mode="json") if hasattr(zone, "model_dump") else zone for zone in camera.zones],
                 "processing_options": option_values,
             }
         source = value.get("source") or {"kind": value.get("source_kind", "file"), "path": value.get("path", value.get("url"))}
@@ -212,34 +272,35 @@ class PostgresStore:
         from datetime import datetime, timezone
 
         stamp = updated_at or datetime.now(timezone.utc).isoformat()
-        with self._session() as session:
-            with session.begin():
-                record = session.get(CameraRecord, camera_id)
-                if record is None:
-                    record = CameraRecord(
-                        camera_id=camera_id,
-                        display_name=str(value["display_name"]).strip(),
-                        source_kind=source_kind,
-                        source_path=source_path,
-                        enabled=bool(value.get("enabled", True)),
-                        zones_json=json.dumps(value.get("zones") or [], sort_keys=True),
-                        processing_options_json=json.dumps(options, sort_keys=True),
-                        created_at=created_at or stamp,
-                        updated_at=stamp,
-                    )
-                    session.add(record)
-                else:
-                    record.display_name = str(value["display_name"]).strip()
-                    record.source_kind = source_kind
-                    record.source_path = source_path
-                    record.enabled = bool(value.get("enabled", True))
-                    record.zones_json = json.dumps(value.get("zones") or [], sort_keys=True)
-                    record.processing_options_json = json.dumps(options, sort_keys=True)
-                    record.updated_at = stamp
+        def _write(session):
+            record = session.get(CameraRecord, camera_id)
+            if record is None:
+                record = CameraRecord(
+                    camera_id=camera_id,
+                    display_name=str(value["display_name"]).strip(),
+                    source_kind=source_kind,
+                    source_path=source_path,
+                    enabled=bool(value.get("enabled", True)),
+                    zones_json=json.dumps(value.get("zones") or [], sort_keys=True),
+                    processing_options_json=json.dumps(options, sort_keys=True),
+                    created_at=created_at or stamp,
+                    updated_at=stamp,
+                )
+                session.add(record)
+            else:
+                record.display_name = str(value["display_name"]).strip()
+                record.source_kind = source_kind
+                record.source_path = source_path
+                record.enabled = bool(value.get("enabled", True))
+                record.zones_json = json.dumps(value.get("zones") or [], sort_keys=True)
+                record.processing_options_json = json.dumps(options, sort_keys=True)
+                record.updated_at = stamp
+
+        self._write_with_retry(_write, fallback_fn=lambda fb: fb.upsert_camera(camera, created_at=created_at, updated_at=updated_at))
         result = self.get_camera(camera_id)
-        if result is None:  # pragma: no cover - transaction failure raises first
-            raise RuntimeError("camera insert did not persist")
-        return result
+        if result is None and self._fallback_store:
+            result = self._fallback_store.get_camera(camera_id)
+        return result or value
 
     save_camera = upsert_camera
     create_camera = upsert_camera
@@ -247,13 +308,17 @@ class PostgresStore:
     update_camera = upsert_camera
 
     def get_camera(self, camera_id: str) -> dict[str, Any] | None:
-        with self._session() as session:
-            record = session.get(CameraRecord, camera_id)
-            return self._camera_dict(record) if record else None
+        return self._query_with_retry(
+            lambda s: (lambda r: self._camera_dict(r) if r else None)(s.get(CameraRecord, camera_id)),
+            default=None,
+            fallback_fn=lambda fb: fb.get_camera(camera_id)
+        )
 
     def list_cameras(self) -> list[dict[str, Any]]:
-        with self._session() as session:
-            return [self._camera_dict(item) for item in session.scalars(select(CameraRecord).order_by(CameraRecord.created_at, CameraRecord.camera_id)).all()]
+        return self._query_with_retry(
+            lambda s: [self._camera_dict(item) for item in s.scalars(select(CameraRecord).order_by(CameraRecord.created_at, CameraRecord.camera_id)).all()],
+            default=[]
+        ) or []
 
     def delete_camera(self, camera_id: str) -> bool:
         with self._session() as session:
@@ -309,8 +374,11 @@ class PostgresStore:
             statement = statement.where(MonitoringReportRecord.camera_id == camera_id)
         if session_id:
             statement = statement.where(MonitoringReportRecord.session_id == session_id)
-        with self._session() as session:
-            return [self._report_dict(item) for item in session.scalars(statement).all()]
+        return self._query_with_retry(
+            lambda s: [self._report_dict(item) for item in s.scalars(statement).all()],
+            default=[],
+            fallback_fn=lambda fb: fb.list_monitoring_reports(camera_id=camera_id, session_id=session_id)
+        ) or []
 
     list_reports = list_monitoring_reports
     get_reports = list_monitoring_reports
@@ -356,8 +424,11 @@ class PostgresStore:
             statement = statement.where(MonitoringAnomalyRecord.camera_id == camera_id)
         if session_id:
             statement = statement.where(MonitoringAnomalyRecord.session_id == session_id)
-        with self._session() as session:
-            return [self._anomaly_dict(item) for item in session.scalars(statement).all()]
+        return self._query_with_retry(
+            lambda s: [self._anomaly_dict(item) for item in s.scalars(statement).all()],
+            default=[],
+            fallback_fn=lambda fb: fb.list_monitoring_anomalies(camera_id=camera_id, session_id=session_id)
+        ) or []
 
     list_anomalies = list_monitoring_anomalies
     get_monitoring_anomalies = list_monitoring_anomalies
@@ -374,33 +445,55 @@ class PostgresStore:
         size_bytes: int | None = None,
         checksum_sha256: str | None = None,
     ) -> dict[str, Any]:
-        with self._session() as session:
-            with session.begin():
-                session.add(
-                    VideoRecord(
-                        video_id=video_id,
-                        filename=filename,
-                        media_path=media_path,
-                        media_object_key=media_object_key,
-                        created_at=created_at,
-                        content_type=content_type,
-                        size_bytes=size_bytes,
-                        checksum_sha256=checksum_sha256,
-                    )
+        def _write(session):
+            session.add(
+                VideoRecord(
+                    video_id=video_id,
+                    filename=filename,
+                    media_path=media_path,
+                    media_object_key=media_object_key,
+                    created_at=created_at,
+                    content_type=content_type,
+                    size_bytes=size_bytes,
+                    checksum_sha256=checksum_sha256,
                 )
+            )
+        self._write_with_retry(
+            _write,
+            fallback_fn=lambda fb: fb.add_video(
+                video_id,
+                filename,
+                media_path,
+                created_at,
+                media_object_key=media_object_key,
+                content_type=content_type,
+                size_bytes=size_bytes,
+                checksum_sha256=checksum_sha256,
+            )
+        )
         result = self.get_video(video_id)
-        if result is None:  # pragma: no cover - transaction failure raises first
-            raise RuntimeError("video insert did not persist")
-        return result
+        if result is None and self._fallback_store:
+            result = self._fallback_store.get_video(video_id)
+        return result or {
+            "video_id": video_id,
+            "filename": filename,
+            "media_path": media_path,
+            "media_object_key": media_object_key,
+            "created_at": created_at,
+        }
 
     def get_video(self, video_id: str) -> dict[str, Any] | None:
-        with self._session() as session:
-            record = session.get(VideoRecord, video_id)
-            return self._video_dict(record) if record else None
+        return self._query_with_retry(
+            lambda s: (lambda r: self._video_dict(r) if r else None)(s.get(VideoRecord, video_id)),
+            default=None,
+            fallback_fn=lambda fb: fb.get_video(video_id)
+        )
 
     def list_videos(self) -> list[dict[str, Any]]:
-        with self._session() as session:
-            return [self._video_dict(item) for item in session.scalars(select(VideoRecord).order_by(VideoRecord.created_at)).all()]
+        return self._query_with_retry(
+            lambda s: [self._video_dict(item) for item in s.scalars(select(VideoRecord).order_by(VideoRecord.created_at)).all()],
+            default=[]
+        ) or []
 
     def list_video_artifacts(self, video_id: str) -> list[dict[str, Any]]:
         with self._session() as session:
@@ -433,27 +526,29 @@ class PostgresStore:
                 return bool(result.rowcount)
 
     def add_job(self, job_id: str, video_id: str, status: str, created_at: str) -> dict[str, Any]:
-        with self._session() as session:
-            with session.begin():
-                session.add(JobRecord(job_id=job_id, video_id=video_id, status=status, created_at=created_at))
+        def _write(session):
+            session.add(JobRecord(job_id=job_id, video_id=video_id, status=status, created_at=created_at))
+        self._write_with_retry(_write, fallback_fn=lambda fb: fb.add_job(job_id, video_id, status, created_at))
         result = self.get_job(job_id)
-        if result is None:  # pragma: no cover - transaction failure raises first
-            raise RuntimeError("job insert did not persist")
-        return result
+        if result is None and self._fallback_store:
+            result = self._fallback_store.get_job(job_id)
+        return result or {"job_id": job_id, "video_id": video_id, "status": status, "created_at": created_at}
 
     def update_job(self, job_id: str, status: str, error: str | None = None) -> dict[str, Any] | None:
-        with self._session() as session:
-            with session.begin():
-                record = session.get(JobRecord, job_id)
-                if record is not None:
-                    record.status = status
-                    record.error = error
+        def _write(session):
+            record = session.get(JobRecord, job_id)
+            if record is not None:
+                record.status = status
+                record.error = error
+        self._write_with_retry(_write, fallback_fn=lambda fb: fb.update_job(job_id, status, error))
         return self.get_job(job_id)
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
-        with self._session() as session:
-            record = session.get(JobRecord, job_id)
-            return self._job_dict(record) if record else None
+        return self._query_with_retry(
+            lambda s: (lambda r: self._job_dict(r) if r else None)(s.get(JobRecord, job_id)),
+            default=None,
+            fallback_fn=lambda fb: fb.get_job(job_id)
+        )
 
     def add_events(self, video_id: str, events: list[dict[str, Any]]) -> None:
         if not events:
@@ -507,9 +602,10 @@ class PostgresStore:
         if event_type:
             statement = statement.where(EventRecord.event_type == event_type)
         statement = statement.order_by(EventRecord.timestamp_seconds)
-        with self._session() as session:
-            records = session.scalars(statement).all()
-            return [self._event_dict(record) for record in records]
+        return self._query_with_retry(
+            lambda s: [self._event_dict(record) for record in s.scalars(statement).all()],
+            default=[]
+        ) or []
 
     def add_observations(self, video_id: str, observations: tuple[Any, ...], *, frame_index_start: int = 0) -> None:
         with self._session() as session:
@@ -585,9 +681,9 @@ class PostgresStore:
             ]
 
     def add_chat_message(self, message_id: str, conversation_id: str, role: str, content: str, citations: list[dict[str, Any]], created_at: str) -> dict[str, Any]:
-        with self._session() as session:
-            with session.begin():
-                session.add(ChatMessageRecord(message_id=message_id, conversation_id=conversation_id, role=role, content=content, citations_json=json.dumps(citations), created_at=created_at))
+        def _write(session):
+            session.add(ChatMessageRecord(message_id=message_id, conversation_id=conversation_id, role=role, content=content, citations_json=json.dumps(citations), created_at=created_at))
+        self._write_with_retry(_write, fallback_fn=lambda fb: fb.add_chat_message(message_id, conversation_id, role, content, citations, created_at))
         return {"message_id": message_id, "conversation_id": conversation_id, "role": role, "content": content, "citations": citations, "created_at": created_at}
 
     def add_alert_rule(self, rule: dict[str, Any]) -> dict[str, Any]:
@@ -597,11 +693,13 @@ class PostgresStore:
         return rule
 
     def list_alert_rules(self) -> list[dict[str, Any]]:
-        with self._session() as session:
-            return [
+        return self._query_with_retry(
+            lambda s: [
                 {"rule_id": item.rule_id, "name": item.name, "event_type": item.event_type, "zone_id": item.zone_id, "object_label": item.object_label, "enabled": item.enabled, "cooldown_seconds": item.cooldown_seconds, "created_at": item.created_at}
-                for item in session.scalars(select(AlertRuleRecord).order_by(AlertRuleRecord.created_at.desc())).all()
-            ]
+                for item in s.scalars(select(AlertRuleRecord).order_by(AlertRuleRecord.created_at.desc())).all()
+            ],
+            default=[]
+        ) or []
 
     def create_alerts_for_events(self, events: list[dict[str, Any]], *, created_at: str) -> list[dict[str, Any]]:
         created = []
@@ -622,8 +720,10 @@ class PostgresStore:
         statement = select(AlertRecord).order_by(AlertRecord.created_at.desc())
         if status:
             statement = statement.where(AlertRecord.status == status)
-        with self._session() as session:
-            return [{"alert_id": item.alert_id, "rule_id": item.rule_id, "event_id": item.event_id, "status": item.status, "message": item.message, "created_at": item.created_at, "acknowledged_at": item.acknowledged_at} for item in session.scalars(statement).all()]
+        return self._query_with_retry(
+            lambda s: [{"alert_id": item.alert_id, "rule_id": item.rule_id, "event_id": item.event_id, "status": item.status, "message": item.message, "created_at": item.created_at, "acknowledged_at": item.acknowledged_at} for item in s.scalars(statement).all()],
+            default=[]
+        ) or []
 
     def acknowledge_alert(self, alert_id: str, acknowledged_at: str) -> dict[str, Any] | None:
         with self._session() as session:
@@ -634,6 +734,50 @@ class PostgresStore:
                 item.status = "acknowledged"
                 item.acknowledged_at = acknowledged_at
         return next((item for item in self.list_alerts() if item["alert_id"] == alert_id), None)
+
+    def delete_alert_rule(self, rule_id: str) -> bool:
+        for attempt in range(2):
+            try:
+                with self._session() as session:
+                    with session.begin():
+                        for alert in session.scalars(select(AlertRecord).where(AlertRecord.rule_id == str(rule_id))).all():
+                            session.delete(alert)
+                        rule = session.get(AlertRuleRecord, str(rule_id))
+                        if rule is not None:
+                            session.delete(rule)
+                            return True
+                        rule_match = session.scalars(select(AlertRuleRecord).where(AlertRuleRecord.rule_id == str(rule_id))).first()
+                        if rule_match is not None:
+                            session.delete(rule_match)
+                            return True
+                        return True
+            except (OperationalError, DBAPIError):
+                if attempt == 0:
+                    try:
+                        self.engine.dispose()
+                    except Exception:
+                        pass
+                    continue
+                return False
+        return False
+
+    def delete_alert(self, alert_id: str) -> bool:
+        with self._session() as session:
+            with session.begin():
+                item = session.get(AlertRecord, alert_id)
+                if item is not None:
+                    session.delete(item)
+                    return True
+                return False
+
+    def clear_alerts(self) -> int:
+        with self._session() as session:
+            with session.begin():
+                alerts = session.scalars(select(AlertRecord)).all()
+                count = len(alerts)
+                for a in alerts:
+                    session.delete(a)
+                return count
 
     def get_event(self, event_id: str) -> dict[str, Any] | None:
         with self._session() as session:

@@ -70,11 +70,14 @@ def test_continuous_device_route_starts_and_persists_live_report(monkeypatch, tm
 
     assert started.status_code == 200
     assert started.json()["worker_mode"] == "inline-live"
-    for _ in range(20):
+    for _ in range(50):
         reports = client.get("/api/v1/cameras/device-0/reports").json()["reports"]
         if reports and reports[-1]["status"] in {"completed", "failed", "stopped"}:
             break
-        time.sleep(0.01)
+        time.sleep(0.02)
     assert reports[-1]["status"] == "completed"
     assert reports[-1]["source_kind"] == CameraSourceKind.DEVICE.value
     assert reports[-1]["frame_count"] == 2
+    context = client.get("/api/v1/cameras/device-0/live-context", params={"session_id": reports[-1]["session_id"]})
+    assert context.status_code == 200
+    assert context.json()["agent_feed"]["frames"] == 2

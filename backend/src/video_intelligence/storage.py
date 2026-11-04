@@ -720,6 +720,22 @@ class Store:
         row = self.connection.execute("SELECT * FROM alerts WHERE alert_id = ?", (alert_id,)).fetchone()
         return dict(row) if row else None
 
+    def delete_alert_rule(self, rule_id: str) -> bool:
+        self.connection.execute("DELETE FROM alerts WHERE rule_id = ?", (rule_id,))
+        cursor = self.connection.execute("DELETE FROM alert_rules WHERE rule_id = ?", (rule_id,))
+        self.connection.commit()
+        return cursor.rowcount > 0
+
+    def delete_alert(self, alert_id: str) -> bool:
+        cursor = self.connection.execute("DELETE FROM alerts WHERE alert_id = ?", (alert_id,))
+        self.connection.commit()
+        return cursor.rowcount > 0
+
+    def clear_alerts(self) -> int:
+        cursor = self.connection.execute("DELETE FROM alerts")
+        self.connection.commit()
+        return cursor.rowcount
+
     def search_events(
         self,
         *,

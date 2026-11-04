@@ -5,6 +5,7 @@ from threading import Event
 from video_intelligence.cameras import CameraSourceKind, MonitoringStatus
 from video_intelligence.domain import ObjectObservation
 from video_intelligence.operations.streaming import CameraStreamMonitoringWorker
+from video_intelligence.operations.outbox import OutboxStore
 from video_intelligence.pipeline import DetectedObject
 from video_intelligence.storage import Store
 
@@ -123,3 +124,45 @@ def test_live_worker_honors_stop_event_and_marks_report_stopped():
 
     assert result["status"] == MonitoringStatus.STOPPED.value
     assert result["frame_count"] == 1
+
+
+def test_live_worker_feeds_alerts_to_inline_delivery_handler_and_outbox():
+    store = Store(":memory:")
+    store.upsert_camera(
+        {
+            "camera_id": "front",
+            "display_name": "Front",
+            "source": {"kind": "device", "path": "0"},
+            "zones": [{"zone_id": "gate", "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]]}],
+        }
+    )
+    store.add_alert_rule(
+        {
+            "rule_id": "rule-live",
+            "name": "Live perimeter breach",
+            "event_type": "enter",
+            "zone_id": "gate",
+            "object_label": "person",
+            "enabled": True,
+            "cooldown_seconds": 0,
+            "created_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    outbox = OutboxStore(":memory:")
+    delivered = []
+    worker = CameraStreamMonitoringWorker(
+        store,
+        outbox=outbox,
+        notification_channels=("telegram",),
+        notification_handler=lambda record: delivered.append(record),
+        capture_factory=lambda _source: FakeCapture([object(), object()]),
+        component_factory=lambda _options, scope: (FakeDetector(), FakeTracker(scope)),
+        sleep=lambda _seconds: None,
+    )
+
+    result = worker.run("front", session_id="live-alert", max_frames=2)
+
+    assert result["event_count"] == 1
+    assert delivered
+    assert delivered[0]["payload"]["channel"] == "telegram"
+    assert outbox.list(status="delivered")

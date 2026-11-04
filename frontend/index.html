@@ -82,7 +82,7 @@
         </section>
       </main>
       <footer class="auth-footnote">
-        <span>Meta SAM 3.1 & Muse Spark 1.3</span>
+        <span>Vehicle & Person Detector & Muse Spark 1.3</span>
         <span>Supabase PostgreSQL + Qdrant Cloud</span>
         <span>Zero-Leakage Local Processing</span>
       </footer>
@@ -114,7 +114,10 @@
       <div class="nav-section-label">LIVE SURVEILLANCE</div>
       <nav class="side-nav">
         <button class="nav-item" data-view="camera" title="Live Video Matrix"><span class="nav-ico">◉</span><span>Live Video Matrix</span></button>
+        <button class="nav-item" data-view="live-config" title="Live Video Stream Configuration"><span class="nav-ico">⚙</span><span>Stream Configuration</span></button>
+        <button class="nav-item" data-view="live-config" title="Live Stream Configuration"><span class="nav-ico">⚙</span><span>Stream Configuration</span></button>
         <button class="nav-item" data-view="monitoring" title="Camera Streams & Fleet"><span class="nav-ico">▦</span><span>Camera Streams</span></button>
+        <button class="nav-item" data-view="live-archive" title="Live Footage Archive"><span class="nav-ico">🎞</span><span>Live Footage Archive</span></button>
         <button class="nav-item" data-view="alerts" title="Perimeter Rules & Tripwires"><span class="nav-ico">!</span><span>Perimeter Rules</span></button>
         <button class="nav-item" data-view="live-copilot" title="Live Stream Copilot"><span class="nav-ico">✦</span><span>Live Stream Copilot</span></button>
       </nav>
@@ -187,8 +190,8 @@
           <div class="hero-card vms-hero">
             <div class="hero-content">
               <span class="live-badge"><span class="status-dot"></span>CENTRAL MONITORING DISPATCH</span>
-              <h2>Multi-Stream Video Surveillance & Intelligence</h2>
-              <p>Real-time perception with Meta SAM 3.1 video segmentation, automated geometric perimeter defense, and LangGraph forensic reasoning backed by Supabase & Qdrant.</p>
+              <h2>Multi-Stream Video Surveillance System</h2>
+              <p>Real-time multi-camera video surveillance, perimeter intrusion defense, and forensic incident investigation.</p>
               <div class="hero-actions">
                 <button class="button primary" data-go-view="camera"><span>◉</span> Open Live Matrix</button>
                 <button class="button secondary" data-go-view="monitoring"><span>▦</span> Provision Camera</button>
@@ -221,7 +224,7 @@
             <article class="metric-card">
               <span class="metric-label">Forensic Agent</span>
               <strong id="metric-assistant">Grounded</strong>
-              <small id="metric-assistant-detail">Meta Muse Spark 1.3</small>
+              <small id="metric-assistant-detail">Forensic Analysis Engine</small>
             </article>
           </div>
 
@@ -261,8 +264,7 @@
           </div>
 
           <!-- Video Matrix Grid -->
-          <div id="vms-matrix-container" class="vms-matrix-grid grid-2x2">
-            <!-- Channel 1: Primary Camera (Webcam / Stream 1) -->
+          <div id="vms-matrix-container" class="vms-matrix-grid grid-1x1">
             <article class="vms-video-card active-feed" id="feed-channel-1">
               <div class="vms-video-header">
                 <div class="vms-feed-meta">
@@ -311,108 +313,237 @@
                   <button id="btn-draw-zone" class="button secondary small" type="button" title="Interactive Polygon Zone Drawer">✎ Draw Zone</button>
                   <button id="btn-clear-zone" class="button ghost small" type="button" title="Reset Drawn Zones">↺ Reset</button>
                   <button id="btn-snap-photo" class="button ghost small" type="button" title="Snapshot Frame">📷 Snap</button>
+                  <button id="btn-open-sentry-config" class="button ghost small" type="button" title="Configure Live Stream">⚙ Config</button>
+                  <button id="btn-open-sentry-config" class="button ghost small" type="button" title="Detection Zone Coordinates & Sentry Settings">⚙ Config</button>
                 </div>
               </div>
             </article>
 
-            <!-- Channel 2: East Perimeter Gate -->
-            <article class="vms-video-card" id="feed-channel-2">
-              <div class="vms-video-header">
-                <div class="vms-feed-meta">
-                  <span class="vms-feed-badge">CH-02</span>
-                  <strong>CAM 02 · East Perimeter Gate</strong>
-                  <small>RTSP Feed · Standby</small>
-                </div>
-                <div class="vms-feed-stats"><span class="status-pill status-failed">OFFLINE</span></div>
-              </div>
-              <div class="vms-frame-viewport aux-feed">
-                <canvas id="aux-canvas-ch2" class="aux-canvas" width="480" height="320"></canvas>
-                <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
-                <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-02 // RTSP DISCONNECTED</div>
-              </div>
-              <div class="vms-feed-toolbar aux-toolbar">
-                <span class="vms-telemetry-tag red">NO SIGNAL</span>
-                <span class="vms-telemetry-tag">BITRATE: 0.0 kbps</span>
-                <span class="vms-telemetry-tag">FPS: 0</span>
-                <button class="button text-button nav-to-cameras" type="button" data-nav-view="monitoring" style="color: #38bdf8; font-size: 11px; margin-left: auto;">＋ Configure RTSP</button>
-              </div>
-            </article>
-
-            <!-- Channel 3: Loading Dock North -->
-            <article class="vms-video-card" id="feed-channel-3">
-              <div class="vms-video-header">
-                <div class="vms-feed-meta">
-                  <span class="vms-feed-badge">CH-03</span>
-                  <strong>CAM 03 · Loading Dock & Bay</strong>
-                  <small>RTSP Feed · Standby</small>
-                </div>
-                <div class="vms-feed-stats"><span class="status-pill status-failed">OFFLINE</span></div>
-              </div>
-              <div class="vms-frame-viewport aux-feed">
-                <canvas id="aux-canvas-ch3" class="aux-canvas" width="480" height="320"></canvas>
-                <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
-                <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-03 // RTSP DISCONNECTED</div>
-              </div>
-              <div class="vms-feed-toolbar aux-toolbar">
-                <span class="vms-telemetry-tag red">NO SIGNAL</span>
-                <span class="vms-telemetry-tag">BITRATE: 0.0 kbps</span>
-                <span class="vms-telemetry-tag">FPS: 0</span>
-                <button class="button text-button nav-to-cameras" type="button" data-nav-view="monitoring" style="color: #38bdf8; font-size: 11px; margin-left: auto;">＋ Configure RTSP</button>
-              </div>
-            </article>
-
-            <!-- Channel 4: Restricted Core Vault -->
-            <article class="vms-video-card" id="feed-channel-4">
-              <div class="vms-video-header">
-                <div class="vms-feed-meta">
-                  <span class="vms-feed-badge">CH-04</span>
-                  <strong>CAM 04 · Restricted Core Vault</strong>
-                  <small>IR Sensor · Standby</small>
-                </div>
-                <div class="vms-feed-stats"><span class="status-pill status-failed">OFFLINE</span></div>
-              </div>
-              <div class="vms-frame-viewport aux-feed">
-                <canvas id="aux-canvas-ch4" class="aux-canvas" width="480" height="320"></canvas>
-                <div class="vms-hud-reticle tl"></div><div class="vms-hud-reticle tr"></div>
-                <div class="vms-hud-reticle bl"></div><div class="vms-hud-reticle br"></div>
-                <div class="vms-hud-watermark">CAM-04 // RTSP DISCONNECTED</div>
-              </div>
-              <div class="vms-feed-toolbar aux-toolbar">
-                <span class="vms-telemetry-tag red">NO SIGNAL</span>
-                <span class="vms-telemetry-tag">BITRATE: 0.0 kbps</span>
-                <span class="vms-telemetry-tag">FPS: 0</span>
-                <button class="button text-button nav-to-cameras" type="button" data-nav-view="monitoring" style="color: #38bdf8; font-size: 11px; margin-left: auto;">＋ Configure RTSP</button>
-              </div>
-            </article>
+            <!-- Dynamic Camera Feeds Container (Populated when cameras are added/provisioned) -->
+            <div id="active-aux-streams-container" class="active-aux-streams-container" style="display: contents;"></div>
           </div>
 
-          <!-- Dock Panel: Status & Zone Coordinates -->
-          <div class="camera-dock-grid">
-            <article class="panel">
-              <div class="panel-header">
-                <div><p class="eyebrow">CAPTURE TELEMETRY</p><h3>Session Status</h3></div>
+          <!-- Sentry Configuration Modal (Live Surveillance Settings) -->
+          <div id="modal-sentry-config" class="vms-modal-backdrop" hidden>
+            <div class="vms-modal-card" style="max-width: 580px;">
+              <div class="vms-modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(56, 189, 248, 0.2); padding-bottom: 12px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 20px; color: #00e5ff;">⚙</span>
+                  <div>
+                    <h3 style="margin: 0; font-size: 16px; color: #f8fafc;">Live Sentry Configuration</h3>
+                    <small style="color: #94a3b8;">Detection zone coordinates, recording duration & sensor telemetry</small>
+                  </div>
+                </div>
+                <button id="btn-close-sentry-config" class="button ghost small" type="button" style="padding: 4px 8px; font-size: 14px;">✕</button>
               </div>
-              <div id="camera-status" class="form-status">Camera is ready for a local test session.</div>
-              <div id="camera-result" class="result-card" hidden></div>
-            </article>
 
-            <article class="panel camera-settings">
-              <div class="panel-header">
-                <div><p class="eyebrow">GEOMETRIC SENTRY</p><h3>Zone Boundary Coordinates</h3></div>
-                <div class="zone-presets-row">
-                  <button type="button" class="btn-preset" data-zone-preset="perimeter">Perimeter Box</button>
-                  <button type="button" class="btn-preset" data-zone-preset="gate">Center Gate</button>
-                  <button type="button" class="btn-preset" data-zone-preset="full">Full Frame</button>
+              <div class="vms-modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- Capture Duration -->
+                <div>
+                  <label style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; margin-bottom: 6px;">
+                    <span>Capture Duration</span>
+                    <span id="cfg-duration-label" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: #00e5ff;">10s</span>
+                  </label>
+                  <input id="cfg-camera-duration" type="range" min="3" max="60" value="10" style="width: 100%; accent-color: #00e5ff; cursor: pointer;">
+                </div>
+
+                <!-- Zone Boundary Coordinates -->
+                <div>
+                  <label style="display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; margin-bottom: 6px;">
+                    Zone Boundary Coordinates Presets
+                  </label>
+                  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <button id="cfg-zone-perimeter" class="button secondary small" type="button">Perimeter Box</button>
+                    <button id="cfg-zone-center" class="button secondary small" type="button">Center Gate</button>
+                    <button id="cfg-zone-full" class="button secondary small" type="button">Full Frame</button>
+                  </div>
+                  <textarea id="cfg-zone-json" rows="3" style="width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(15, 23, 42, 0.9); color: #cbd5e1; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 8px; resize: vertical;" spellcheck="false">[{"zone_id":"cctv1-zone","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
+                </div>
+
+                <!-- Live Sensor Telemetry -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px;">
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Sensor Stream:</span>
+                    <strong id="cfg-telemetry-mode" style="color: #f8fafc;">Local WebRTC Sensor</strong>
+                  </div>
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Frame Geometry:</span>
+                    <strong id="cfg-telemetry-res" style="color: #f8fafc;">640 × 480 px</strong>
+                  </div>
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Perception Engine:</span>
+                    <strong style="color: #10b981;">Meta SAM 3.1 & BGE-M3</strong>
+                  </div>
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Sentry Status:</span>
+                    <strong id="cfg-telemetry-status" style="color: #38bdf8;">Armed & Ready</strong>
+                  </div>
                 </div>
               </div>
-              <label>Capture Length (seconds)
-                <input id="camera-duration" type="number" min="3" max="60" value="10">
-              </label>
-              <label>Zone JSON (Auto-populated by visual drawing tool)
-                <textarea id="camera-zones" rows="3">[{"zone_id":"cctv1-zone","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
-              </label>
+
+              <div class="vms-modal-footer" style="margin-top: 16px; padding-top: 12px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(56, 189, 248, 0.15);">
+                <button id="btn-save-sentry-config" class="button primary small" type="button">Save & Apply</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- 2.5 LIVE STREAM CONFIGURATION VIEW (DEDICATED SECTION IN LIVE SURVEILLANCE) -->
+        <section class="view" data-view-panel="live-config">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">LIVE SURVEILLANCE PARAMETERS</p>
+              <h2>Live Stream & Recording Configuration</h2>
+              <p class="muted">Visual configuration for live multi-camera stride, continuous 24/7 video recording, and perimeter detection parameters without JSON.</p>
+            </div>
+            <div class="button-row">
+              <span id="live-config-status-badge" class="status-pill status-running">ACTIVE PIPELINE</span>
+              <button id="btn-save-dedicated-config" class="button primary" type="button">Save Configuration</button>
+            </div>
+          </div>
+
+          <div class="dashboard-grid two-col" style="gap: 20px;">
+            <!-- Left Card: Live Camera Capture & Duration -->
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">CAPTURE TELEMETRY & BOUNDARIES</p>
+                  <h3>Camera Sentry Parameters</h3>
+                </div>
+              </div>
+
+              <div class="stack-form" style="display: flex; flex-direction: column; gap: 16px; padding: 4px 0;">
+                <div>
+                  <label style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; margin-bottom: 6px;">
+                    <span>Capture Length (Seconds)</span>
+                    <span id="dedicated-cfg-duration-label" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: #00e5ff;">10s</span>
+                  </label>
+                  <input id="dedicated-cfg-duration" type="range" min="3" max="60" value="10" style="width: 100%; accent-color: #00e5ff; cursor: pointer;">
+                  <small class="muted" style="display: block; margin-top: 4px;">Duration for on-demand alert captures and incident evidence clips (3–60s).</small>
+                </div>
+
+                <div>
+                  <label style="display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; margin-bottom: 6px;">
+                    Zone Boundary Coordinates Presets
+                  </label>
+                  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <button id="dedicated-cfg-zone-perimeter" class="button secondary small" type="button">Perimeter Box</button>
+                    <button id="dedicated-cfg-zone-center" class="button secondary small" type="button">Center Gate</button>
+                    <button id="dedicated-cfg-zone-full" class="button secondary small" type="button">Full Frame</button>
+                  </div>
+                  <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Zone JSON (Auto-populated by visual drawing tool)</label>
+                  <textarea id="dedicated-cfg-zone-json" rows="4" style="width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(15, 23, 42, 0.9); color: #cbd5e1; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 8px; resize: vertical;" spellcheck="false">[{"zone_id":"cctv1-zone","polygon":[[0,0],[640,0],[640,480],[0,480]]}]</textarea>
+                </div>
+
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px;">
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Sensor Stream:</span>
+                    <strong style="color: #f8fafc;">Local WebRTC Sensor</strong>
+                  </div>
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Frame Geometry:</span>
+                    <strong style="color: #f8fafc;">640 × 480 px (Native)</strong>
+                  </div>
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Detection Mode:</span>
+                    <strong style="color: #10b981;">Armed & Ready</strong>
+                  </div>
+                  <div>
+                    <span style="color: #94a3b8; display: block;">Active Channels:</span>
+                    <strong id="dedicated-cfg-active-channels" style="color: #38bdf8;">1 CCTV Channel Armed</strong>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Right Card: Stream Processing & All-Day Recording Pipeline (Image 3!) -->
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">PROCESSING & ARCHIVAL PIPELINE</p>
+                  <h3>Stream Processing & Continuous Recording</h3>
+                </div>
+              </div>
+
+              <form id="dedicated-pipeline-form" class="stack-form" style="display: flex; flex-direction: column; gap: 14px;">
+                <div class="field-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                  <label>Sampling Frame Stride
+                    <select id="dedicated-cfg-stride">
+                      <option value="1">Every 1st frame (Full 30 FPS · Intensive)</option>
+                      <option value="5">Every 5th frame (~6 FPS · High Precision)</option>
+                      <option value="10" selected>Every 10th frame (~3 FPS · Recommended)</option>
+                      <option value="15">Every 15th frame (~2 FPS · Energy Saver)</option>
+                      <option value="30">Every 30th frame (~1 FPS · Minimal Load)</option>
+                    </select>
+                    <small class="muted">Skips intermediate frames to keep live latency near zero across multi-camera streams.</small>
+                  </label>
+
+                  <label>Detection Engine
+                    <select id="dedicated-cfg-model">
+                      <option value="sam" selected>Object & Perimeter Detection · Active</option>
+                      <option value="baseline">Baseline Motion Sentry</option>
+                    </select>
+                    <small class="muted">Real-time object recognition and zone intrusion verification.</small>
+                  </label>
+                </div>
+
+                <div class="field-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                  <label>Object Tracker Engine
+                    <select id="dedicated-cfg-tracker">
+                      <option value="sam" selected>Continuous Trajectory Tracker · Active</option>
+                      <option value="centroid">Centroid Motion Tracker</option>
+                    </select>
+                    <small class="muted">Maintains persistent track IDs across multi-camera handoffs.</small>
+                  </label>
+
+                  <label>Hardware Acceleration
+                    <select id="dedicated-cfg-device">
+                      <option value="cpu" selected>CPU Multi-threading</option>
+                      <option value="cuda">GPU Hardware (NVIDIA CUDA)</option>
+                    </select>
+                    <small class="muted">Select available acceleration backend for real-time video processing.</small>
+                  </label>
+                </div>
+
+                <div class="field-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                  <label>All-Day Continuous Recording
+                    <select id="dedicated-cfg-continuous">
+                      <option value="true" selected>Enabled (Record 24/7 in background)</option>
+                      <option value="false">Disabled (Event & On-Demand Only)</option>
+                    </select>
+                    <small class="muted">Continuously saves live stream segments to the separated storage vault.</small>
+                  </label>
+
+                  <label>Segment Chunk Duration
+                    <select id="dedicated-cfg-chunk">
+                      <option value="15">15 Minutes</option>
+                      <option value="30">30 Minutes</option>
+                      <option value="60" selected>1 Hour (Recommended)</option>
+                      <option value="120">2 Hours</option>
+                    </select>
+                    <small class="muted">Length of individual video chunks indexed in the Live Archive.</small>
+                  </label>
+                </div>
+
+                <div class="field-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                  <label>Auto-Retention Pruning
+                    <select id="dedicated-cfg-retention">
+                      <option value="7">7 Days</option>
+                      <option value="14" selected>14 Days</option>
+                      <option value="30">30 Days</option>
+                      <option value="90">90 Days</option>
+                      <option value="0">Keep Indefinitely</option>
+                    </select>
+                    <small class="muted">Automatically purges footage older than retention policy to preserve disk space.</small>
+                  </label>
+
+                  <div style="display: flex; align-items: flex-end;">
+                    <button class="button primary" type="submit" style="width: 100%; height: 42px;">Save Live Pipeline Configuration</button>
+                  </div>
+                </div>
+              </form>
+              <div id="dedicated-config-status" class="form-status" style="margin-top: 10px;"></div>
             </article>
           </div>
         </section>
@@ -585,13 +716,13 @@
                 <div class="field-grid">
                   <label>Object Detector
                     <select id="model-profile">
-                      <option value="sam" selected>Meta SAM 3.1 (Segment + Detect) · Active</option>
+                      <option value="sam" selected>Vehicle & Person Detector (Segment + Detect) · Active</option>
                       <option value="baseline">Baseline Bright-Blob · Active</option>
                     </select>
                   </label>
                   <label>Track Engine
                     <select id="tracker-profile">
-                      <option value="sam" selected>Meta SAM 3.1 Video Tracker · Active</option>
+                      <option value="sam" selected>Vehicle & Person Detector Video Tracker · Active</option>
                       <option value="centroid">Centroid Tracker · Active</option>
                     </select>
                   </label>
@@ -624,7 +755,7 @@
 
           <article class="panel evidence-panel">
             <div class="panel-header">
-              <div><p class="eyebrow">SPATIAL AUDIT</p><h3>Security Events & Evidence Artifacts</h3></div>
+              <div><p class="eyebrow">SECURITY AUDIT</p><h3>Security Events & Video Evidence</h3></div>
               <button id="refresh-events" class="button secondary" type="button">Refresh Events</button>
             </div>
             <div class="search-bar">
@@ -653,9 +784,9 @@
             <div class="tracks-panel">
               <div class="panel-header">
                 <div>
-                  <p class="eyebrow">PERSISTED TRACKS</p>
+                  <p class="eyebrow">OBJECT MOTION PATHS</p>
                   <h3>Track Observation Table</h3>
-                  <p class="panel-subcopy">Scoped by camera and video session. Appearance attributes extracted via SigLIP 2 embeddings.</p>
+                  <p class="panel-subcopy">Scoped by camera and video session. Continuous trajectory tracking and perimeter crosses.</p>
                 </div>
                 <button id="refresh-tracks" class="button secondary" type="button">Refresh Tracks</button>
               </div>
@@ -686,7 +817,7 @@
                   <h3>Forensic Archive Copilot</h3>
                 </div>
                 <div class="chat-hud-badges">
-                  <span class="hud-tag">Meta Muse Spark 1.3</span>
+                  <span class="hud-tag">Forensic Analysis Engine</span>
                   <span class="assistant-badge">Zero Hallucination Grounded</span>
                 </div>
               </div>
@@ -742,9 +873,9 @@
             <div>
               <p class="eyebrow">REAL-TIME SURVEILLANCE COPILOT</p>
               <h2>Live Stream & Perimeter Fleet Copilot</h2>
-              <p class="muted">Real-time situational intelligence across active RTSP camera streams, perimeter tripwires, and live intrusion alerts. Powered by Meta Muse Spark 1.3.</p>
+              <p class="muted">Real-time situational intelligence across active RTSP camera streams, perimeter tripwires, and live intrusion alerts. Powered by Forensic Analysis Engine.</p>
             </div>
-            <span id="live-fleet-badge" class="vms-agent-pill offline" style="color: #fca5a5; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35);"><span class="blink-dot" style="background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>ALL CAMERAS OFFLINE (0 ACTIVE)</span>
+            <span id="live-fleet-badge" class="vms-agent-pill offline" style="color: #94a3b8; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.25);"><span class="blink-dot" style="background: #94a3b8;"></span>SURVEILLANCE FLEET STANDBY (0 ACTIVE)</span>
           </div>
 
           <div class="assistant-layout">
@@ -755,16 +886,16 @@
                   <h3>Live Surveillance Guard</h3>
                 </div>
                 <div class="chat-hud-badges">
-                  <span class="hud-tag">Meta Muse Spark 1.3</span>
+                  <span class="hud-tag">Forensic Analysis Engine</span>
                   <span class="assistant-badge">Zero Hallucination Grounded</span>
                 </div>
               </div>
 
               <div id="live-chat-history" class="chat-history">
                 <div class="chat-empty">
-                  <span class="chat-empty-mark" style="color: #ef4444; background: rgba(239, 68, 68, 0.15);">⊘</span>
-                  <strong>All Camera Streams Currently Offline</strong>
-                  <small>No live RTSP camera streams are currently streaming frames. The Live Copilot reports verified offline fleet telemetry. Connect a camera in Camera Streams or start CAM-01 to begin real-time surveillance.</small>
+                  <span class="chat-empty-mark" style="color: #38bdf8; background: rgba(56, 189, 248, 0.15);">📡</span>
+                  <strong>Surveillance Fleet Standby</strong>
+                  <small>Camera streams are armed in standby mode. Start CAM-01 on the Live Video Matrix or connect an RTSP stream to begin real-time surveillance. You can still query armed rules and system health below.</small>
                 </div>
               </div>
 
@@ -916,7 +1047,13 @@
             </form>
             <div id="alert-status" class="form-status"></div>
 
-            <div class="panel-header alert-heading"><h3>Configured Rules</h3></div>
+            <div class="panel-header alert-heading" style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>Configured Rules</h3>
+              <div class="button-row">
+                <button id="refresh-rules" class="button secondary small" type="button">Refresh Rules</button>
+                <button id="clear-all-rules" class="button danger small" type="button">Clear All Rules</button>
+              </div>
+            </div>
             <div id="alert-rules" class="rule-list">
               <div class="empty">No active security rules defined.</div>
             </div>

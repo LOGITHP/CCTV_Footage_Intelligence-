@@ -88,6 +88,21 @@ def _ask_backend(question: str) -> str:
         return f"⚠️ <b>AI Sentry Copilot Unavailable:</b> {html.escape(str(err))}"
 
 
+def _fetch_backend_snapshot(path: str = "/api/v1/live/snapshot") -> bytes | None:
+    backend_url = os.getenv("VIDEO_INTELLIGENCE_API_URL", "http://video-intelligence:8000").rstrip("/")
+    headers = {}
+    token = os.getenv("VIDEO_INTELLIGENCE_API_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = Request(f"{backend_url}{path}", headers=headers, method="GET")
+    try:
+        with urlopen(request, timeout=10.0) as response:  # noqa: S310
+            return response.read()
+    except Exception as exc:
+        logger.warning("Failed to fetch snapshot from %s: %s", path, exc)
+        return None
+
+
 def _format_alert(body: Mapping[str, Any]) -> str:
     """Format structured alert into high-priority Telegram HTML dispatch."""
     rule = body.get("rule_name") or body.get("rule_id")
@@ -233,9 +248,36 @@ async def webhook(request: FastAPIRequest) -> dict[str, Any]:
         client.send_message(chat_id, reply, parse_mode="HTML")
         return {"status": "responded", "command": text, "chat_id": chat_id}
 
-    # Free-form question: grounded reasoning through main Copilot
+    # Free-form question: grounded reasoning through main Copilot with evidence footage snapshot
     answer = _ask_backend(text)
-    client.send_message(chat_id, answer, parse_mode="HTML")
+    snapshot_bytes = _fetch_backend_snapshot("/api/v1/live/snapshot")
+    if snapshot_bytes:
+        photo_caption = answer[:1000] if len(answer) > 1000 else answer
+        sent = False
+        try:
+            client.send_photo(chat_id, snapshot_bytes, caption=photo_caption, parse_mode="HTML")
+            sent = True
+        except Exception:
+            try:
+                # Retry without strict HTML parsing in case answer contained unescaped characters
+                client.send_photo(chat_id, snapshot_bytes, caption=photo_caption, parse_mode=None)
+                sent = True
+            except Exception as photo_err:
+                logger.warning("send_photo failed, falling back to message: %s", photo_err)
+
+        if sent:
+            if len(answer) > 1000:
+                remainder = answer[1000:]
+                try:
+                    client.send_message(chat_id, remainder, parse_mode="HTML")
+                except Exception:
+                    client.send_message(chat_id, remainder)
+            return {"status": "responded_with_snapshot", "chat_id": chat_id}
+
+    try:
+        client.send_message(chat_id, answer, parse_mode="HTML")
+    except Exception:
+        client.send_message(chat_id, answer)
     return {"status": "responded", "chat_id": chat_id}
 
 

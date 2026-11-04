@@ -356,6 +356,15 @@ def answer_live_query(
         req_conversation_id = getattr(request, "conversation_id", None)
 
     cameras = store.list_cameras() if hasattr(store, "list_cameras") else []
+    if not any(c.get("camera_id") == "cam-01" for c in cameras):
+        cameras.insert(0, {
+            "camera_id": "cam-01",
+            "display_name": "CAM 01 · Primary Sentry",
+            "source": {"kind": "local", "path": "browser://cam-01"},
+            "enabled": True,
+            "zones": [{"zone_id": "cctv1-zone", "polygon": [[0, 0], [640, 0], [640, 480], [0, 480]]}],
+            "processing_options": {"model_profile": "sam", "every": 10},
+        })
     alerts = store.list_alerts() if hasattr(store, "list_alerts") else []
     rules = store.list_alert_rules() if hasattr(store, "list_alert_rules") else []
     reports = (

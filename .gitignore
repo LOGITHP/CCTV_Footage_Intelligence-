@@ -20,6 +20,7 @@ dist/
 # Application databases and uploaded media data
 data/
 *.sqlite3
+*.db
 models/
 
 # OS and editor files
