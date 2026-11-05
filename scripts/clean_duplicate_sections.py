@@ -31,3 +31,4 @@ if len(matches) > 1:
     print("Cleaned up duplicates! Kept exactly one section.")
 else:
     print("No duplicate sections found or pattern mismatch.")
+

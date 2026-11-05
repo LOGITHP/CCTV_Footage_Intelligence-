@@ -83,6 +83,13 @@ def _torch_device(device: str):
 def settings_from_env() -> ModelSettings:
     import os
 
+    meta_key = os.getenv("META_API_KEY", os.getenv("MUSE_API_KEY", "")).strip()
+    baseten_key = os.getenv("BASETEN_API_KEY", "").strip()
+    if meta_key.startswith("b10_") and not baseten_key:
+        baseten_key = meta_key
+    elif baseten_key and not meta_key:
+        meta_key = baseten_key
+
     return ModelSettings(
         profile=os.getenv("MODEL_PROFILE", "baseline").strip().lower(),
         device=os.getenv("MODEL_DEVICE", "cpu").strip().lower(),
@@ -91,10 +98,10 @@ def settings_from_env() -> ModelSettings:
         siglip_model=os.getenv("SIGLIP_MODEL", "google/siglip2-base-patch16-224").strip(),
         bge_model=os.getenv("BGE_MODEL", "BAAI/bge-m3").strip(),
         qwen_model=os.getenv("QWEN_MODEL", "Qwen/Qwen3-8B").strip(),
-        meta_api_key=os.getenv("META_API_KEY", os.getenv("MUSE_API_KEY", "")).strip(),
+        meta_api_key=meta_key,
         meta_api_url=os.getenv("META_API_URL", "https://api.meta.ai/v1").strip(),
         meta_model=os.getenv("META_MODEL", os.getenv("MUSE_MODEL", "meta-models/muse-spark-open-1026")).strip(),
-        baseten_api_key=os.getenv("BASETEN_API_KEY", "").strip(),
+        baseten_api_key=baseten_key,
         baseten_sam_endpoint=os.getenv("BASETEN_SAM_ENDPOINT", "").strip(),
         baseten_siglip_endpoint=os.getenv("BASETEN_SIGLIP_ENDPOINT", "").strip(),
         baseten_bge_endpoint=os.getenv("BASETEN_BGE_ENDPOINT", "").strip(),
@@ -523,7 +530,7 @@ class MetaMuseGroundedResponder:
         # Multi-model routing: use Baseten only when explicitly configured, then
         # fall back to the Meta API.  No credential is embedded in the source;
         # this also keeps offline tests from making accidental paid requests.
-        baseten_key = (os.getenv("BASETEN_API_KEY") or self.settings.baseten_api_key).strip()
+        baseten_key = (os.getenv("BASETEN_API_KEY") or self.settings.baseten_api_key or (self.api_key if self.api_key.startswith("b10_") else "")).strip()
         baseten_url = (os.getenv("BASETEN_INFERENCE_URL") or "https://inference.baseten.co/v1").rstrip("/")
         endpoints_to_try = []
         if self.explicit_api_url:
@@ -532,7 +539,7 @@ class MetaMuseGroundedResponder:
         else:
             if baseten_key:
                 endpoints_to_try.append((baseten_url, baseten_key, "meta-models/muse-spark-open-1026"))
-            if self.api_key and self.api_url != baseten_url:
+            if self.api_key and not self.api_key.startswith("b10_") and self.api_url != baseten_url:
                 endpoints_to_try.append((self.api_url, self.api_key, "muse-spark-1.3"))
 
         import urllib.request
@@ -665,6 +672,8 @@ class SAMDetector:
         self.baseten_api_key = (baseten_api_key or os.getenv("BASETEN_API_KEY", "")).strip()
         self.meta_api_key = (meta_api_key or os.getenv("META_API_KEY", "")).strip()
         self.meta_api_url = (meta_api_url or os.getenv("META_API_URL", "https://api.meta.ai/v1")).rstrip("/")
+        if self.meta_api_key.startswith("b10_") and not self.baseten_api_key:
+            self.baseten_api_key = self.meta_api_key
         self._sam_model = None
 
         if model_path:
@@ -684,7 +693,12 @@ class SAMDetector:
 
         # 1. Meta Direct API SAM 3.1 inference
         sam_mode = os.getenv("SAM_MODEL_MODE", os.getenv("META_SAM_ENABLED", "false")).strip().lower()
-        if sam_mode in {"meta", "api", "true", "1"} and self.meta_api_key and "api.meta.ai" in self.meta_api_url:
+        if (
+            sam_mode in {"meta", "api", "true", "1"}
+            and self.meta_api_key
+            and not self.meta_api_key.startswith("b10_")
+            and "api.meta.ai" in self.meta_api_url
+        ):
             try:
                 import base64
                 import urllib.request

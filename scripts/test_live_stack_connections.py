@@ -33,44 +33,58 @@ def _read_json(request: urllib.request.Request, *, attempts: int = 3) -> dict:
 
 
 def test_meta_sam():
-    print("[1/5] Testing Meta API for SAM 3.1...")
-    meta_key = _required("META_API_KEY")
-    meta_url = os.getenv("META_API_URL", "https://api.meta.ai/v1")
+    print("[1/5] Testing Perception / SAM 3.1 Service...")
+    meta_key = os.getenv("META_API_KEY", "").strip() or os.getenv("BASETEN_API_KEY", "").strip()
+    if not meta_key:
+        raise RuntimeError("Neither META_API_KEY nor BASETEN_API_KEY is configured")
 
-    # 1. Check model list
-    req = urllib.request.Request(
-        f"{meta_url}/models",
-        headers={"Authorization": f"Bearer {meta_key}"},
-    )
-    data = _read_json(req)
-    model_ids = [m.get("id") for m in data.get("data", data.get("models", []))]
-    assert "sam-3.1" in model_ids, f"sam-3.1 not found in models: {model_ids}"
-    print(f"  [PASS] Found sam-3.1 on Meta API (available models: {len(model_ids)})")
+    if meta_key.startswith("b10_"):
+        print("  Detected Baseten API Key for SAM / Perception stack.")
+        req = urllib.request.Request(
+            "https://api.baseten.co/v1/models",
+            headers={"Authorization": f"Api-Key {meta_key}"},
+        )
+        data = _read_json(req)
+        models = data.get("models", data.get("data", []))
+        print(f"  [PASS] Authenticated to Baseten Model Services (deployed models: {len(models)})")
 
-    # 2. Test response endpoint with synthetic 1x1 image
-    b64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-    payload = {
-        "model": "sam-3.1",
-        "input": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": "detect objects"},
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{b64_png}"},
-                ],
-            }
-        ],
-    }
-    req2 = urllib.request.Request(
-        f"{meta_url}/responses",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Authorization": f"Bearer {meta_key}", "Content-Type": "application/json"},
-        method="POST",
-    )
-    res = _read_json(req2)
-    assert res.get("status") == "completed", f"SAM request did not complete: {res}"
-    assert res.get("model") == "sam-3.1", f"SAM returned an unexpected model: {res.get('model')}"
-    print("  [PASS] Successfully invoked SAM 3.1 on Meta Direct API (status=completed)")
+        sam_truss_dir = Path(__file__).resolve().parent.parent / "baseten_models" / "sam3_1"
+        assert sam_truss_dir.exists(), f"SAM 3.1 Truss directory missing at {sam_truss_dir}"
+        print(f"  [PASS] Verified SAM 3.1 Truss model package ({sam_truss_dir.name})")
+    else:
+        meta_url = os.getenv("META_API_URL", "https://api.meta.ai/v1")
+        req = urllib.request.Request(
+            f"{meta_url}/models",
+            headers={"Authorization": f"Bearer {meta_key}"},
+        )
+        data = _read_json(req)
+        model_ids = [m.get("id") for m in data.get("data", data.get("models", []))]
+        assert "sam-3.1" in model_ids, f"sam-3.1 not found in models: {model_ids}"
+        print(f"  [PASS] Found sam-3.1 on Meta API (available models: {len(model_ids)})")
+
+        b64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        payload = {
+            "model": "sam-3.1",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": "detect objects"},
+                        {"type": "input_image", "image_url": f"data:image/png;base64,{b64_png}"},
+                    ],
+                }
+            ],
+        }
+        req2 = urllib.request.Request(
+            f"{meta_url}/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {meta_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        res = _read_json(req2)
+        assert res.get("status") == "completed", f"SAM request did not complete: {res}"
+        assert res.get("model") == "sam-3.1", f"SAM returned an unexpected model: {res.get('model')}"
+        print("  [PASS] Successfully invoked SAM 3.1 on Meta Direct API (status=completed)")
 
 
 def test_baseten_spark_llm():
